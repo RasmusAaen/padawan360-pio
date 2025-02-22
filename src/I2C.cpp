@@ -2,8 +2,8 @@
 #include <Wire.h>
 #include "I2C.h"
 
-void i2c::sendI2C(byte address, char *command) {
+void i2c::sendMessage(byte address, char *message) {
   Wire.beginTransmission(address);
-  Wire.write(command);
+  Wire.write(message);
   Wire.endTransmission();
 }

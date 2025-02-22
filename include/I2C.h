@@ -10,7 +10,7 @@ class i2c {
      * @param  address The I2C address of the device.
      * @param  command The message to send.
      */
-    static void sendI2C(byte address, char *command);
+    static void sendMessage(byte address, char *message);
 };
 
 #endif // __I2C_H__

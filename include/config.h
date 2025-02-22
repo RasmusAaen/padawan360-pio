@@ -54,6 +54,7 @@
 #define I2C_MP3    52
 #define I2C_TEECES 50
 #define I2C_HOLOS  50
+#define I2C_PANELS 50
 
 
 // Effect durations

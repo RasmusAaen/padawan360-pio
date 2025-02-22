@@ -10,86 +10,83 @@ void Player::play(byte bank, byte track) {
 }
 
 void Player::playRandom() {
-  char msg[4];
-  snprintf(msg, sizeof(msg), "$R\r", (int)random(1,5), (int)random(1,11));
-  i2c::sendMessage(I2C_MP3, msg);
+  i2c::sendMessage(I2C_MP3, (char*)"$R\r");
 }
 
 void Player::playRandom(byte bank, byte trackMin, byte trackMax) {
-  // play a random sound
   char msg[6];
   snprintf(msg, sizeof(msg), "$%d%02d\r", bank, (int)random(trackMin,trackMax+1));
   i2c::sendMessage(I2C_MP3, msg);
 }
 
 void Player::off() {
-  i2c::sendMessage(I2C_MP3, "$O\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$O\r");
 }
 
 void Player::playLeia() {
-  i2c::sendMessage(I2C_MP3, "$L\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$L\r");
 }
 
 void Player::playCantina() {
-  i2c::sendMessage(I2C_MP3, "$C\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$C\r");
 }
 
 void Player::playCantinaBeep() {
-  i2c::sendMessage(I2C_MP3, "$c\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$c\r");
 }
 
 void Player::playScream() {
-  i2c::sendMessage(I2C_MP3, "$S\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$S\r");
 }
 
 void Player::playShortCircuit() {
-  i2c::sendMessage(I2C_MP3, "$F\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$F\r");
 }
 
 void Player::playDisco() {
-  i2c::sendMessage(I2C_MP3, "$D\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$D\r");
 }
 
 void Player::stop() {
-  i2c::sendMessage(I2C_MP3, "$s\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$s\r");
 }
 
 void Player::volumeUp() {
-  i2c::sendMessage(I2C_MP3, "$V+\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$V+\r");
 }
 
 void Player::volumeDown() {
-  i2c::sendMessage(I2C_MP3, "$V-\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$V-\r");
 }
 
 void Player::volumeMid() {
-  i2c::sendMessage(I2C_MP3, "$m\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$m\r");
 }
 
 void Player::volumeMax() {
-  i2c::sendMessage(I2C_MP3, "$f\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$f\r");
 }
 
 void Player::volumeMin() {
-  i2c::sendMessage(I2C_MP3, "$p\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$p\r");
 }
 
 void Player::playStarWars() {
-  i2c::sendMessage(I2C_MP3, "$W\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$W\r");
 }
 
 void Player::playStarWarsBeep() {
-  i2c::sendMessage(I2C_MP3, "$w\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$w\r");
 }
 
 void Player::playMarch() {
-  i2c::sendMessage(I2C_MP3, "$M\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$M\r");
 }
 
 void Player::playMarchBeep() {
-  i2c::sendMessage(I2C_MP3, "$i\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$i\r");
 }
 
 void Player::playStartup() {
-  i2c::sendMessage(I2C_MP3, "$B\r");
+  i2c::sendMessage(I2C_MP3, (char*)"$B\r");
 }

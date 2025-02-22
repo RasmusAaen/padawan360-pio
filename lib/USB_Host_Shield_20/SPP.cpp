@@ -43,11 +43,8 @@ const uint8_t rfcomm_crc_table[256] PROGMEM = {/* reversed, 8-bit, poly=0x07 */
 };
 
 SPP::SPP(BTD *p, const char* name, const char* pin) :
-pBtd(p) // Pointer to BTD class instance - mandatory
+BluetoothService(p) // Pointer to BTD class instance - mandatory
 {
-        if(pBtd)
-                pBtd->registerServiceClass(this); // Register it as a Bluetooth service
-
         pBtd->btdName = name;
         pBtd->btdPin = pin;
 
@@ -69,6 +66,7 @@ void SPP::Reset() {
         l2cap_rfcomm_state = L2CAP_RFCOMM_WAIT;
         l2cap_event_flag = 0;
         sppIndex = 0;
+        creditSent = false;
 }
 
 void SPP::disconnect() {
@@ -97,9 +95,9 @@ void SPP::ACLData(uint8_t* l2capinbuf) {
                         }
                 }
         }
-        //if((l2capinbuf[0] | (uint16_t)l2capinbuf[1] << 8) == (hci_handle | 0x2000U)) { // acl_handle_ok
-        if(UHS_ACL_HANDLE_OK(l2capinbuf, hci_handle)) { // acl_handle_ok
-                if((l2capinbuf[6] | (l2capinbuf[7] << 8)) == 0x0001U) { //l2cap_control - Channel ID for ACL-U
+
+        if(checkHciHandle(l2capinbuf, hci_handle)) { // acl_handle_ok
+                if((l2capinbuf[6] | (l2capinbuf[7] << 8)) == 0x0001U) { // l2cap_control - Channel ID for ACL-U
                         if(l2capinbuf[8] == L2CAP_CMD_COMMAND_REJECT) {
 #ifdef DEBUG_USB_HOST
                                 Notify(PSTR("\r\nL2CAP Command Rejected - Reason: "), 0x80);
@@ -191,7 +189,7 @@ void SPP::ACLData(uint8_t* l2capinbuf) {
                         }
 #endif
                 } else if(l2capinbuf[6] == sdp_dcid[0] && l2capinbuf[7] == sdp_dcid[1]) { // SDP
-                        if(l2capinbuf[8] == SDP_SERVICE_SEARCH_ATTRIBUTE_REQUEST_PDU) {
+                        if(l2capinbuf[8] == SDP_SERVICE_SEARCH_ATTRIBUTE_REQUEST) {
                                 if(((l2capinbuf[16] << 8 | l2capinbuf[17]) == SERIALPORT_UUID) || ((l2capinbuf[16] << 8 | l2capinbuf[17]) == 0x0000 && (l2capinbuf[18] << 8 | l2capinbuf[19]) == SERIALPORT_UUID)) { // Check if it's sending the full UUID, see: https://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm, we will just check the first four bytes
                                         if(firstMessage) {
                                                 serialPortResponse1(l2capinbuf[9], l2capinbuf[10]);
@@ -372,7 +370,7 @@ void SPP::ACLData(uint8_t* l2capinbuf) {
 #endif
                                                 sendRfcommCredit(rfcommChannelConnection, rfcommDirection, 0, RFCOMM_UIH, 0x10, sizeof (rfcommDataBuffer)); // Send credit
                                                 creditSent = true;
-                                                timer = millis();
+                                                timer = (uint32_t)millis();
                                                 waitForLastCommand = true;
                                         }
                                 } else if(rfcommChannelType == RFCOMM_UIH && l2capinbuf[10] == 0x01) { // UIH Command with credit
@@ -397,10 +395,7 @@ void SPP::ACLData(uint8_t* l2capinbuf) {
 #ifdef DEBUG_USB_HOST
                                         Notify(PSTR("\r\nRFCOMM Connection is now established\r\n"), 0x80);
 #endif
-                                        waitForLastCommand = false;
-                                        creditSent = false;
-                                        connected = true; // The RFCOMM channel is now established
-                                        sppIndex = 0;
+                                        onInit();
                                 }
 #ifdef EXTRADEBUG
                                 else if(rfcommChannelType != RFCOMM_DISC) {
@@ -426,17 +421,23 @@ void SPP::ACLData(uint8_t* l2capinbuf) {
 }
 
 void SPP::Run() {
-        if(waitForLastCommand && (millis() - timer) > 100) { // We will only wait 100ms and see if the UIH Remote Port Negotiation Command is send, as some deviced don't send it
+        if(waitForLastCommand && (int32_t)((uint32_t)millis() - timer) > 100) { // We will only wait 100ms and see if the UIH Remote Port Negotiation Command is send, as some deviced don't send it
 #ifdef DEBUG_USB_HOST
                 Notify(PSTR("\r\nRFCOMM Connection is now established - Automatic\r\n"), 0x80);
 #endif
-                creditSent = false;
-                waitForLastCommand = false;
-                connected = true; // The RFCOMM channel is now established
-                sppIndex = 0;
+                onInit();
         }
         send(); // Send all bytes currently in the buffer
 }
+
+void SPP::onInit() {
+        creditSent = false;
+        waitForLastCommand = false;
+        connected = true; // The RFCOMM channel is now established
+        sppIndex = 0;
+        if(pFuncOnInit)
+                pFuncOnInit(); // Call the user function
+};
 
 void SPP::SDP_task() {
         switch(l2cap_sdp_state) {
@@ -535,118 +536,131 @@ void SPP::SDP_Command(uint8_t* data, uint8_t nbytes) { // See page 223 in the Bl
 }
 
 void SPP::serviceNotSupported(uint8_t transactionIDHigh, uint8_t transactionIDLow) { // See page 235 in the Bluetooth specs
-        l2capoutbuf[0] = SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE_PDU;
+        l2capoutbuf[0] = SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE;
         l2capoutbuf[1] = transactionIDHigh;
         l2capoutbuf[2] = transactionIDLow;
-        l2capoutbuf[3] = 0x00; // Parameter Length
-        l2capoutbuf[4] = 0x05; // Parameter Length
-        l2capoutbuf[5] = 0x00; // AttributeListsByteCount
-        l2capoutbuf[6] = 0x02; // AttributeListsByteCount
+        l2capoutbuf[3] = 0x00; // MSB Parameter Length
+        l2capoutbuf[4] = 0x05; // LSB Parameter Length = 5
+        l2capoutbuf[5] = 0x00; // MSB AttributeListsByteCount
+        l2capoutbuf[6] = 0x02; // LSB AttributeListsByteCount = 2
 
         /* Attribute ID/Value Sequence: */
-        l2capoutbuf[7] = 0x35;
-        l2capoutbuf[8] = 0x00;
-        l2capoutbuf[9] = 0x00;
+        l2capoutbuf[7] = 0x35; // Data element sequence - length in next byte
+        l2capoutbuf[8] = 0x00; // Length = 0
+        l2capoutbuf[9] = 0x00; // No continuation state
 
         SDP_Command(l2capoutbuf, 10);
 }
 
 void SPP::serialPortResponse1(uint8_t transactionIDHigh, uint8_t transactionIDLow) {
-        l2capoutbuf[0] = SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE_PDU;
+        l2capoutbuf[0] = SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE;
         l2capoutbuf[1] = transactionIDHigh;
         l2capoutbuf[2] = transactionIDLow;
-        l2capoutbuf[3] = 0x00; // Parameter Length
-        l2capoutbuf[4] = 0x2B; // Parameter Length
-        l2capoutbuf[5] = 0x00; // AttributeListsByteCount
-        l2capoutbuf[6] = 0x26; // AttributeListsByteCount
+        l2capoutbuf[3] = 0x00; // MSB Parameter Length
+        l2capoutbuf[4] = 0x2B; // LSB Parameter Length = 43
+        l2capoutbuf[5] = 0x00; // MSB AttributeListsByteCount
+        l2capoutbuf[6] = 0x26; // LSB AttributeListsByteCount = 38
 
         /* Attribute ID/Value Sequence: */
-        l2capoutbuf[7] = 0x36;
-        l2capoutbuf[8] = 0x00;
-        l2capoutbuf[9] = 0x3C;
-        l2capoutbuf[10] = 0x36;
-        l2capoutbuf[11] = 0x00;
+        l2capoutbuf[7] = 0x36; // Data element sequence - length in next two bytes
+        l2capoutbuf[8] = 0x00; // MSB Length
+        l2capoutbuf[9] = 0x3C; // LSB Length = 60
 
-        l2capoutbuf[12] = 0x39;
-        l2capoutbuf[13] = 0x09;
-        l2capoutbuf[14] = 0x00;
-        l2capoutbuf[15] = 0x00;
-        l2capoutbuf[16] = 0x0A;
-        l2capoutbuf[17] = 0x00;
+        l2capoutbuf[10] = 0x36; // Data element sequence - length in next two bytes
+        l2capoutbuf[11] = 0x00; // MSB Length
+        l2capoutbuf[12] = 0x39; // LSB Length = 57
+
+        l2capoutbuf[13] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[14] = 0x00; // MSB ServiceRecordHandle
+        l2capoutbuf[15] = 0x00; // LSB ServiceRecordHandle
+        l2capoutbuf[16] = 0x0A; // Unsigned int - length 4 bytes
+        l2capoutbuf[17] = 0x00; // ServiceRecordHandle value - TODO: Is this related to HCI_Handle?
         l2capoutbuf[18] = 0x01;
         l2capoutbuf[19] = 0x00;
         l2capoutbuf[20] = 0x06;
-        l2capoutbuf[21] = 0x09;
-        l2capoutbuf[22] = 0x00;
-        l2capoutbuf[23] = 0x01;
-        l2capoutbuf[24] = 0x35;
-        l2capoutbuf[25] = 0x03;
-        l2capoutbuf[26] = 0x19;
-        l2capoutbuf[27] = 0x11;
 
-        l2capoutbuf[28] = 0x01;
-        l2capoutbuf[29] = 0x09;
-        l2capoutbuf[30] = 0x00;
-        l2capoutbuf[31] = 0x04;
-        l2capoutbuf[32] = 0x35;
-        l2capoutbuf[33] = 0x0C;
-        l2capoutbuf[34] = 0x35;
-        l2capoutbuf[35] = 0x03;
-        l2capoutbuf[36] = 0x19;
-        l2capoutbuf[37] = 0x01;
-        l2capoutbuf[38] = 0x00;
-        l2capoutbuf[39] = 0x35;
-        l2capoutbuf[40] = 0x05;
-        l2capoutbuf[41] = 0x19;
-        l2capoutbuf[42] = 0x00;
-        l2capoutbuf[43] = 0x03;
+        l2capoutbuf[21] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[22] = 0x00; // MSB ServiceClassIDList
+        l2capoutbuf[23] = 0x01; // LSB ServiceClassIDList
+        l2capoutbuf[24] = 0x35; // Data element sequence - length in next byte
+        l2capoutbuf[25] = 0x03; // Length = 3
+        l2capoutbuf[26] = 0x19; // UUID (universally unique identifier) - length = 2 bytes
+        l2capoutbuf[27] = 0x11; // MSB SerialPort
+        l2capoutbuf[28] = 0x01; // LSB SerialPort
 
-        l2capoutbuf[44] = 0x08;
-        l2capoutbuf[45] = 0x02; // Two extra bytes
-        l2capoutbuf[46] = 0x00; // 25 (0x19) more bytes to come
-        l2capoutbuf[47] = 0x19;
+        l2capoutbuf[29] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[30] = 0x00; // MSB ProtocolDescriptorList
+        l2capoutbuf[31] = 0x04; // LSB ProtocolDescriptorList
+        l2capoutbuf[32] = 0x35; // Data element sequence - length in next byte
+        l2capoutbuf[33] = 0x0C; // Length = 12
+
+        l2capoutbuf[34] = 0x35; // Data element sequence - length in next byte
+        l2capoutbuf[35] = 0x03; // Length = 3
+        l2capoutbuf[36] = 0x19; // UUID (universally unique identifier) - length = 2 bytes
+        l2capoutbuf[37] = 0x01; // MSB L2CAP
+        l2capoutbuf[38] = 0x00; // LSB L2CAP
+
+        l2capoutbuf[39] = 0x35; // Data element sequence - length in next byte
+        l2capoutbuf[40] = 0x05; // Length = 5
+        l2capoutbuf[41] = 0x19; // UUID (universally unique identifier) - length = 2 bytes
+        l2capoutbuf[42] = 0x00; // MSB RFCOMM
+        l2capoutbuf[43] = 0x03; // LSB RFCOMM
+        l2capoutbuf[44] = 0x08; // Unsigned Integer - length 1 byte
+
+        l2capoutbuf[45] = 0x02; // ContinuationState - Two more bytes
+        l2capoutbuf[46] = 0x00; // MSB length
+        l2capoutbuf[47] = 0x19; // LSB length = 25 more bytes to come
 
         SDP_Command(l2capoutbuf, 48);
 }
 
 void SPP::serialPortResponse2(uint8_t transactionIDHigh, uint8_t transactionIDLow) {
-        l2capoutbuf[0] = SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE_PDU;
+        l2capoutbuf[0] = SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE;
         l2capoutbuf[1] = transactionIDHigh;
         l2capoutbuf[2] = transactionIDLow;
-        l2capoutbuf[3] = 0x00; // Parameter Length
-        l2capoutbuf[4] = 0x1C; // Parameter Length
-        l2capoutbuf[5] = 0x00; // AttributeListsByteCount
-        l2capoutbuf[6] = 0x19; // AttributeListsByteCount
+        l2capoutbuf[3] = 0x00; // MSB Parameter Length
+        l2capoutbuf[4] = 0x1C; // LSB Parameter Length = 28
+        l2capoutbuf[5] = 0x00; // MSB AttributeListsByteCount
+        l2capoutbuf[6] = 0x19; // LSB AttributeListsByteCount = 25
 
         /* Attribute ID/Value Sequence: */
-        l2capoutbuf[7] = 0x01;
-        l2capoutbuf[8] = 0x09;
-        l2capoutbuf[9] = 0x00;
-        l2capoutbuf[10] = 0x06;
-        l2capoutbuf[11] = 0x35;
+        l2capoutbuf[7] = 0x01; // Channel 1 - TODO: Try different values, so multiple servers can be used at once
 
-        l2capoutbuf[12] = 0x09;
-        l2capoutbuf[13] = 0x09;
-        l2capoutbuf[14] = 0x65;
-        l2capoutbuf[15] = 0x6E;
-        l2capoutbuf[16] = 0x09;
-        l2capoutbuf[17] = 0x00;
-        l2capoutbuf[18] = 0x6A;
-        l2capoutbuf[19] = 0x09;
+        l2capoutbuf[8] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[9] = 0x00; // MSB LanguageBaseAttributeIDList
+        l2capoutbuf[10] = 0x06; // LSB LanguageBaseAttributeIDList
+        l2capoutbuf[11] = 0x35; // Data element sequence - length in next byte
+        l2capoutbuf[12] = 0x09; // Length = 9
+
+        // Identifier representing the natural language = en = English - see: "ISO 639:1988"
+        l2capoutbuf[13] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[14] = 0x65; // 'e'
+        l2capoutbuf[15] = 0x6E; // 'n'
+
+        // "The second element of each triplet contains an identifier that specifies a character encoding used for the language"
+        // Encoding is set to 106 (UTF-8) - see: http://www.iana.org/assignments/character-sets/character-sets.xhtml
+        l2capoutbuf[16] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[17] = 0x00; // MSB of character encoding
+        l2capoutbuf[18] = 0x6A; // LSB of character encoding (106)
+
+        // Attribute ID that serves as the base attribute ID for the natural language in the service record
+        // "To facilitate the retrieval of human-readable universal attributes in a principal language, the base attribute ID value for the primary language supported by a service record shall be 0x0100"
+        l2capoutbuf[19] = 0x09; // Unsigned Integer - length 2 bytes
         l2capoutbuf[20] = 0x01;
         l2capoutbuf[21] = 0x00;
-        l2capoutbuf[22] = 0x09;
-        l2capoutbuf[23] = 0x01;
-        l2capoutbuf[24] = 0x00;
-        l2capoutbuf[25] = 0x25;
 
+        l2capoutbuf[22] = 0x09; // Unsigned Integer - length 2 bytes
+        l2capoutbuf[23] = 0x01; // MSB ServiceDescription
+        l2capoutbuf[24] = 0x00; // LSB ServiceDescription
+
+        l2capoutbuf[25] = 0x25; // Text string - length in next byte
         l2capoutbuf[26] = 0x05; // Name length
         l2capoutbuf[27] = 'T';
         l2capoutbuf[28] = 'K';
         l2capoutbuf[29] = 'J';
         l2capoutbuf[30] = 'S';
         l2capoutbuf[31] = 'P';
-        l2capoutbuf[32] = 0x00; // No more data
+        l2capoutbuf[32] = 0x00; // No continuation state
 
         SDP_Command(l2capoutbuf, 33);
 }

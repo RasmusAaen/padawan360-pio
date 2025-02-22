@@ -26,9 +26,6 @@
 /* Data Xbox 360 taken from descriptors */
 #define EP_MAXPKTSIZE       32 // max size for data via USB
 
-/* Endpoint types */
-#define EP_INTERRUPT        0x03
-
 /* Names we give to the 9 Xbox360 pipes */
 #define XBOX_CONTROL_PIPE   0
 #define XBOX_INPUT_PIPE_1   1
@@ -45,7 +42,8 @@
 #define MADCATZ_VID                             0x1BAD  // For unofficial Mad Catz receivers
 #define JOYTECH_VID                             0x162E  // For unofficial Joytech controllers
 
-#define XBOX_WIRELESS_RECEIVER_PID              0x0719  // Microsoft Wireless Gaming Receiver
+#define XBOX_WIRELESS_RECEIVER_PID_1            0x0719  // Microsoft Wireless Gaming Receiver
+#define XBOX_WIRELESS_RECEIVER_PID_2            0x02A9  // Microsoft Wireless Gaming Receiver
 #define XBOX_WIRELESS_RECEIVER_THIRD_PARTY_PID  0x0291  // Third party Wireless Gaming Receiver
 
 #define XBOX_MAX_ENDPOINTS   9
@@ -71,7 +69,7 @@ public:
          * @param  lowspeed Speed of the device.
          * @return          0 on success.
          */
-        virtual uint8_t ConfigureDevice(uint8_t parent, uint8_t port, bool lowspeed);
+        uint8_t ConfigureDevice(uint8_t parent, uint8_t port, bool lowspeed);
         /**
          * Initialize the Xbox wireless receiver.
          * @param  parent   Hub number.
@@ -79,17 +77,17 @@ public:
          * @param  lowspeed Speed of the device.
          * @return          0 on success.
          */
-        virtual uint8_t Init(uint8_t parent, uint8_t port, bool lowspeed);
+        uint8_t Init(uint8_t parent, uint8_t port, bool lowspeed);
         /**
          * Release the USB device.
          * @return 0 on success.
          */
-        virtual uint8_t Release();
+        uint8_t Release();
         /**
          * Poll the USB Input endpoins and run the state machines.
          * @return 0 on success.
          */
-        virtual uint8_t Poll();
+        uint8_t Poll();
 
         /**
          * Get the device address.
@@ -113,8 +111,8 @@ public:
          * @param  pid The device's PID.
          * @return     Returns true if the device's VID and PID matches this driver.
          */
-        virtual boolean VIDPIDOK(uint16_t vid, uint16_t pid) {
-                return ((vid == XBOX_VID || vid == MADCATZ_VID || vid == JOYTECH_VID) && (pid == XBOX_WIRELESS_RECEIVER_PID || pid == XBOX_WIRELESS_RECEIVER_THIRD_PARTY_PID));
+        virtual bool VIDPIDOK(uint16_t vid, uint16_t pid) {
+                return ((vid == XBOX_VID || vid == MADCATZ_VID || vid == JOYTECH_VID) && (pid == XBOX_WIRELESS_RECEIVER_PID_1 || pid == XBOX_WIRELESS_RECEIVER_PID_2 || pid == XBOX_WIRELESS_RECEIVER_THIRD_PARTY_PID));
         };
         /**@}*/
 

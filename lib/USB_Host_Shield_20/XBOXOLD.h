@@ -19,13 +19,11 @@
 #define _xboxold_h_
 
 #include "Usb.h"
+#include "usbhid.h"
 #include "controllerEnums.h"
 
 /* Data Xbox taken from descriptors */
 #define EP_MAXPKTSIZE       32 // Max size for data via USB
-
-/* Endpoint types */
-#define EP_INTERRUPT        0x03
 
 /* Names we give to the 3 Xbox pipes */
 #define XBOX_CONTROL_PIPE    0
@@ -36,20 +34,18 @@
 #define XBOX_VID                                0x045E // Microsoft Corporation
 #define MADCATZ_VID                             0x1BAD // For unofficial Mad Catz controllers
 #define JOYTECH_VID                             0x162E // For unofficial Joytech controllers
+#define LOGITECH_VID                            0x046D // For official Logitech controllers
 
 #define XBOX_OLD_PID1                           0x0202 // Original Microsoft Xbox controller (US)
 #define XBOX_OLD_PID2                           0x0285 // Original Microsoft Xbox controller (Japan)
 #define XBOX_OLD_PID3                           0x0287 // Microsoft Microsoft Xbox Controller S
 #define XBOX_OLD_PID4                           0x0289 // Smaller Microsoft Xbox controller (US)
-
-// Used in control endpoint header for HID Commands
-#define bmREQ_HID_OUT USB_SETUP_HOST_TO_DEVICE|USB_SETUP_TYPE_CLASS|USB_SETUP_RECIPIENT_INTERFACE
-#define HID_REQUEST_SET_REPORT      0x09
+#define XBOX_OLD_PID5                           0xCA84 // Logitech Cordless Precision controller
 
 #define XBOX_MAX_ENDPOINTS   3
 
 /** This class implements support for a the original Xbox controller via USB. */
-class XBOXOLD : public USBDeviceConfig {
+class XBOXOLD : public USBDeviceConfig, public UsbConfigXtracter {
 public:
         /**
          * Constructor for the XBOXOLD class.
@@ -65,17 +61,17 @@ public:
          * @param  lowspeed Speed of the device.
          * @return          0 on success.
          */
-        virtual uint8_t Init(uint8_t parent, uint8_t port, bool lowspeed);
+        uint8_t Init(uint8_t parent, uint8_t port, bool lowspeed);
         /**
          * Release the USB device.
          * @return 0 on success.
          */
-        virtual uint8_t Release();
+        uint8_t Release();
         /**
          * Poll the USB Input endpoins and run the state machines.
          * @return 0 on success.
          */
-        virtual uint8_t Poll();
+        uint8_t Poll();
 
         /**
          * Get the device address.
@@ -94,13 +90,21 @@ public:
         };
 
         /**
+         * Read the poll interval taken from the endpoint descriptors.
+         * @return The poll interval in ms.
+         */
+        uint8_t readPollInterval() {
+                return pollInterval;
+        };
+
+        /**
          * Used by the USB core to check what this driver support.
          * @param  vid The device's VID.
          * @param  pid The device's PID.
          * @return     Returns true if the device's VID and PID matches this driver.
          */
-        virtual boolean VIDPIDOK(uint16_t vid, uint16_t pid) {
-                return ((vid == XBOX_VID || vid == MADCATZ_VID || vid == JOYTECH_VID) && (pid == XBOX_OLD_PID1 || pid == XBOX_OLD_PID2 || pid == XBOX_OLD_PID3 || pid == XBOX_OLD_PID4));
+        virtual bool VIDPIDOK(uint16_t vid, uint16_t pid) {
+                return ((vid == XBOX_VID || vid == MADCATZ_VID || vid == JOYTECH_VID || vid == LOGITECH_VID) && (pid == XBOX_OLD_PID1 || pid == XBOX_OLD_PID2 || pid == XBOX_OLD_PID3 || pid == XBOX_OLD_PID4 || pid == XBOX_OLD_PID5));
         };
         /**@}*/
 
@@ -158,7 +162,35 @@ protected:
         /** Endpoint info structure. */
         EpInfo epInfo[XBOX_MAX_ENDPOINTS];
 
+        /** Configuration number. */
+        uint8_t bConfNum;
+        /** Total number of endpoints in the configuration. */
+        uint8_t bNumEP;
+        /** Next poll time based on poll interval taken from the USB descriptor. */
+        uint32_t qNextPollTime;
+
+        /** @name UsbConfigXtracter implementation */
+        /**
+         * UsbConfigXtracter implementation, used to extract endpoint information.
+         * @param conf  Configuration value.
+         * @param iface Interface number.
+         * @param alt   Alternate setting.
+         * @param proto Interface Protocol.
+         * @param ep    Endpoint Descriptor.
+         */
+        void EndpointXtract(uint8_t conf, uint8_t iface, uint8_t alt, uint8_t proto, const USB_ENDPOINT_DESCRIPTOR *ep);
+        /**@}*/
+
+        /**
+         * Used to print the USB Endpoint Descriptor.
+         * @param ep_ptr Pointer to USB Endpoint Descriptor.
+         */
+        void PrintEndpointDescriptor(const USB_ENDPOINT_DESCRIPTOR* ep_ptr);
+
 private:
+        static int8_t getAnalogIndex(ButtonEnum b);
+        static int8_t getDigitalIndex(ButtonEnum b);
+
         /**
          * Called when the controller is successfully initialized.
          * Use attachOnInit(void (*funcOnInit)(void)) to call your own function.
@@ -166,6 +198,7 @@ private:
          */
         void (*pFuncOnInit)(void); // Pointer to function called in onInit()
 
+        uint8_t pollInterval;
         bool bPollEnable;
 
         /* Variables to store the digital buttons */

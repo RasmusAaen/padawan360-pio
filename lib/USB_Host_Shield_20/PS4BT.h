@@ -46,14 +46,6 @@ public:
                 return BTHID::connected;
         };
 
-        /**
-         * Used to call your own function when the device is successfully initialized.
-         * @param funcOnInit Function to call.
-         */
-        void attachOnInit(void (*funcOnInit)(void)) {
-                pFuncOnInit = funcOnInit;
-        };
-
 protected:
         /** @name BTHID implementation */
         /**
@@ -73,10 +65,8 @@ protected:
         virtual void OnInitBTHID() {
                 PS4Parser::Reset();
                 enable_sixaxis(); // Make the controller send out the entire output report
-                if (pFuncOnInit)
-                        pFuncOnInit(); // Call the user function
-                else
-                        setLed(Blue);
+                if (!pFuncOnInit)
+                        setLed(Blue); // Only call this is a user function has not been set
         };
 
         /** Used to reset the different buffers to there default values */
@@ -125,7 +115,5 @@ private:
         void HID_Command(uint8_t *data, uint8_t nbytes) {
                 pBtd->L2CAP_Command(hci_handle, data, nbytes, control_scid[0], control_scid[1]);
         };
-
-        void (*pFuncOnInit)(void); // Pointer to function called in onInit()
 };
 #endif

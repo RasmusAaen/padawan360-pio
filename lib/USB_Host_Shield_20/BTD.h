@@ -19,6 +19,7 @@
 #define _btd_h_
 
 #include "Usb.h"
+#include "usbhid.h"
 
 //PID and VID of the Sony PS3 devices
 #define PS3_VID                 0x054C  // Sony Corporation
@@ -26,17 +27,17 @@
 #define PS3NAVIGATION_PID       0x042F  // Navigation controller
 #define PS3MOVE_PID             0x03D5  // Motion controller
 
-#define IOGEAR_GBU521_VID       0x0A5C // The IOGEAR GBU521 dongle does not presents itself correctly, so we have to check for it manually
+// These dongles do not present themselves correctly, so we have to check for them manually
+#define IOGEAR_GBU521_VID       0x0A5C
 #define IOGEAR_GBU521_PID       0x21E8
+#define BELKIN_F8T065BF_VID     0x050D
+#define BELKIN_F8T065BF_PID     0x065A
 
 /* Bluetooth dongle data taken from descriptors */
 #define BULK_MAXPKTSIZE         64 // Max size for ACL data
 
 // Used in control endpoint header for HCI Commands
 #define bmREQ_HCI_OUT USB_SETUP_HOST_TO_DEVICE|USB_SETUP_TYPE_CLASS|USB_SETUP_RECIPIENT_DEVICE
-// Used in control endpoint header for HID Commands
-#define bmREQ_HID_OUT USB_SETUP_HOST_TO_DEVICE|USB_SETUP_TYPE_CLASS|USB_SETUP_RECIPIENT_INTERFACE
-#define HID_REQUEST_SET_REPORT      0x09
 
 /* Bluetooth HCI states for hci_task() */
 #define HCI_INIT_STATE                  0
@@ -44,7 +45,7 @@
 #define HCI_CLASS_STATE                 2
 #define HCI_BDADDR_STATE                3
 #define HCI_LOCAL_VERSION_STATE         4
-#define HCI_SET_NAME_STATE              5
+#define HCI_WRITE_NAME_STATE            5
 #define HCI_CHECK_DEVICE_SERVICE        6
 
 #define HCI_INQUIRY_STATE               7 // These three states are only used if it should pair and connect to a device
@@ -58,17 +59,21 @@
 #define HCI_DISABLE_SCAN_STATE          14
 #define HCI_DONE_STATE                  15
 #define HCI_DISCONNECT_STATE            16
+#define HCI_LOCAL_EXTENDED_FEATURES_STATE       17
+#define HCI_WRITE_SIMPLE_PAIRING_STATE          18
+#define HCI_SET_EVENT_MASK_STATE                19
 
 /* HCI event flags*/
-#define HCI_FLAG_CMD_COMPLETE           0x01
-#define HCI_FLAG_CONNECT_COMPLETE       0x02
-#define HCI_FLAG_DISCONNECT_COMPLETE    0x04
-#define HCI_FLAG_REMOTE_NAME_COMPLETE   0x08
-#define HCI_FLAG_INCOMING_REQUEST       0x10
-#define HCI_FLAG_READ_BDADDR            0x20
-#define HCI_FLAG_READ_VERSION           0x40
-#define HCI_FLAG_DEVICE_FOUND           0x80
-#define HCI_FLAG_CONNECT_EVENT          0x100
+#define HCI_FLAG_CMD_COMPLETE           (1UL << 0)
+#define HCI_FLAG_CONNECT_COMPLETE       (1UL << 1)
+#define HCI_FLAG_DISCONNECT_COMPLETE    (1UL << 2)
+#define HCI_FLAG_REMOTE_NAME_COMPLETE   (1UL << 3)
+#define HCI_FLAG_INCOMING_REQUEST       (1UL << 4)
+#define HCI_FLAG_READ_BDADDR            (1UL << 5)
+#define HCI_FLAG_READ_VERSION           (1UL << 6)
+#define HCI_FLAG_DEVICE_FOUND           (1UL << 7)
+#define HCI_FLAG_CONNECT_EVENT          (1UL << 8)
+#define HCI_FLAG_LOCAL_EXTENDED_FEATURES    (1UL << 9)
 
 /* Macros for HCI event flag tests */
 #define hci_check_flag(flag) (hci_event_flag & (flag))
@@ -85,6 +90,10 @@
 #define EV_REMOTE_NAME_COMPLETE                         0x07
 #define EV_ENCRYPTION_CHANGE                            0x08
 #define EV_CHANGE_CONNECTION_LINK                       0x09
+#define EV_READ_REMOTE_VERSION_INFORMATION_COMPLETE     0x0C
+#define EV_QOS_SETUP_COMPLETE                           0x0D
+#define EV_COMMAND_COMPLETE                             0x0E
+#define EV_COMMAND_STATUS                               0x0F
 #define EV_ROLE_CHANGED                                 0x12
 #define EV_NUM_COMPLETE_PKT                             0x13
 #define EV_PIN_CODE_REQUEST                             0x16
@@ -92,12 +101,14 @@
 #define EV_LINK_KEY_NOTIFICATION                        0x18
 #define EV_DATA_BUFFER_OVERFLOW                         0x1A
 #define EV_MAX_SLOTS_CHANGE                             0x1B
-#define EV_READ_REMOTE_VERSION_INFORMATION_COMPLETE     0x0C
-#define EV_QOS_SETUP_COMPLETE                           0x0D
-#define EV_COMMAND_COMPLETE                             0x0E
-#define EV_COMMAND_STATUS                               0x0F
 #define EV_LOOPBACK_COMMAND                             0x19
 #define EV_PAGE_SCAN_REP_MODE                           0x20
+#define EV_READ_REMOTE_EXTENDED_FEATURES_COMPLETE       0x23
+#define EV_EXTENDED_INQUIRY_RESULT                      0x2F
+#define EV_IO_CAPABILITY_REQUEST                        0x31
+#define EV_IO_CAPABILITY_RESPONSE                       0x32
+#define EV_USER_CONFIRMATION_REQUEST                    0x33
+#define EV_SIMPLE_PAIRING_COMPLETE                      0x36
 
 /* Bluetooth states for the different Bluetooth drivers */
 #define L2CAP_WAIT                      0
@@ -133,28 +144,28 @@
 #define WII_INIT_MOTION_PLUS_STATE      21
 
 /* L2CAP event flags for HID Control channel */
-#define L2CAP_FLAG_CONNECTION_CONTROL_REQUEST           0x00000001
-#define L2CAP_FLAG_CONFIG_CONTROL_SUCCESS               0x00000002
-#define L2CAP_FLAG_CONTROL_CONNECTED                    0x00000004
-#define L2CAP_FLAG_DISCONNECT_CONTROL_RESPONSE          0x00000008
+#define L2CAP_FLAG_CONNECTION_CONTROL_REQUEST           (1UL << 0)
+#define L2CAP_FLAG_CONFIG_CONTROL_SUCCESS               (1UL << 1)
+#define L2CAP_FLAG_CONTROL_CONNECTED                    (1UL << 2)
+#define L2CAP_FLAG_DISCONNECT_CONTROL_RESPONSE          (1UL << 3)
 
 /* L2CAP event flags for HID Interrupt channel */
-#define L2CAP_FLAG_CONNECTION_INTERRUPT_REQUEST         0x00000010
-#define L2CAP_FLAG_CONFIG_INTERRUPT_SUCCESS             0x00000020
-#define L2CAP_FLAG_INTERRUPT_CONNECTED                  0x00000040
-#define L2CAP_FLAG_DISCONNECT_INTERRUPT_RESPONSE        0x00000080
+#define L2CAP_FLAG_CONNECTION_INTERRUPT_REQUEST         (1UL << 4)
+#define L2CAP_FLAG_CONFIG_INTERRUPT_SUCCESS             (1UL << 5)
+#define L2CAP_FLAG_INTERRUPT_CONNECTED                  (1UL << 6)
+#define L2CAP_FLAG_DISCONNECT_INTERRUPT_RESPONSE        (1UL << 7)
 
 /* L2CAP event flags for SDP channel */
-#define L2CAP_FLAG_CONNECTION_SDP_REQUEST               0x00000100
-#define L2CAP_FLAG_CONFIG_SDP_SUCCESS                   0x00000200
-#define L2CAP_FLAG_DISCONNECT_SDP_REQUEST               0x00000400
+#define L2CAP_FLAG_CONNECTION_SDP_REQUEST               (1UL << 8)
+#define L2CAP_FLAG_CONFIG_SDP_SUCCESS                   (1UL << 9)
+#define L2CAP_FLAG_DISCONNECT_SDP_REQUEST               (1UL << 10)
 
 /* L2CAP event flags for RFCOMM channel */
-#define L2CAP_FLAG_CONNECTION_RFCOMM_REQUEST            0x00000800
-#define L2CAP_FLAG_CONFIG_RFCOMM_SUCCESS                0x00001000
-#define L2CAP_FLAG_DISCONNECT_RFCOMM_REQUEST            0x00002000
+#define L2CAP_FLAG_CONNECTION_RFCOMM_REQUEST            (1UL << 11)
+#define L2CAP_FLAG_CONFIG_RFCOMM_SUCCESS                (1UL << 12)
+#define L2CAP_FLAG_DISCONNECT_RFCOMM_REQUEST            (1UL << 13)
 
-#define L2CAP_FLAG_DISCONNECT_RESPONSE                  0x00004000
+#define L2CAP_FLAG_DISCONNECT_RESPONSE                  (1UL << 14)
 
 /* Macros for L2CAP event flag tests */
 #define l2cap_check_flag(flag) (l2cap_event_flag & (flag))
@@ -182,6 +193,17 @@
 #define HID_CTRL_PSM    0x11 // HID_Control PSM Value
 #define HID_INTR_PSM    0x13 // HID_Interrupt PSM Value
 
+/* Used for SDP */
+#define SDP_SERVICE_SEARCH_REQUEST                  0x02
+#define SDP_SERVICE_SEARCH_RESPONSE                 0x03
+#define SDP_SERVICE_ATTRIBUTE_REQUEST               0x04
+#define SDP_SERVICE_ATTRIBUTE_RESPONSE              0x05
+#define SDP_SERVICE_SEARCH_ATTRIBUTE_REQUEST        0x06 // See the RFCOMM specs
+#define SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE       0x07 // See the RFCOMM specs
+#define PNP_INFORMATION_UUID    0x1200
+#define SERIALPORT_UUID         0x1101 // See http://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm
+#define L2CAP_UUID              0x0100
+
 // Used to determine if it is a Bluetooth dongle
 #define WI_SUBCLASS_RF      0x01 // RF Controller
 #define WI_PROTOCOL_BT      0x01 // Bluetooth Programming Interface
@@ -191,37 +213,7 @@
 
 #define PAIR    1
 
-/* acl_handle_ok or it's a new connection */
-#if 0
-#define UHS_ACL_HANDLE_OK(x, y) ((uint16_t)(x[0]) | (uint16_t)(x[1] << 8)) == (y | 0x2000U)
-#else
-/*
- *  Better implementation.
- *  o One place for this code, it is reused four times in the source.
- *    Perhaps it is better as a function.
- *  o This should be faster since the && operation can early exit, this means
- *    the shift would only be performed if the first byte matches.
- *  o Casting is eliminated.
- *  o How does this compare in code size? No difference. It is a free optimization.
- */
-#define UHS_ACL_HANDLE_OK(x, y) ((x[0] == (y & 0xff)) && (x[1] == ((y >> 8) | 0x20)))
-#endif
-
-/** All Bluetooth services should inherit this class. */
-class BluetoothService {
-public:
-        /**
-         * Used to pass acldata to the Bluetooth service.
-         * @param ACLData Pointer to the incoming acldata.
-         */
-        virtual void ACLData(uint8_t* ACLData);
-        /** Used to run the different state machines in the Bluetooth service. */
-        virtual void Run();
-        /** Used to reset the Bluetooth service. */
-        virtual void Reset();
-        /** Used to disconnect both the L2CAP Channel and the HCI Connection for the Bluetooth service. */
-        virtual void disconnect();
-};
+class BluetoothService;
 
 /**
  * The Bluetooth Dongle class will take care of all the USB communication
@@ -243,7 +235,7 @@ public:
          * @param  lowspeed Speed of the device.
          * @return          0 on success.
          */
-        virtual uint8_t ConfigureDevice(uint8_t parent, uint8_t port, bool lowspeed);
+        uint8_t ConfigureDevice(uint8_t parent, uint8_t port, bool lowspeed);
         /**
          * Initialize the Bluetooth dongle.
          * @param  parent   Hub number.
@@ -251,17 +243,17 @@ public:
          * @param  lowspeed Speed of the device.
          * @return          0 on success.
          */
-        virtual uint8_t Init(uint8_t parent, uint8_t port, bool lowspeed);
+        uint8_t Init(uint8_t parent, uint8_t port, bool lowspeed);
         /**
          * Release the USB device.
          * @return 0 on success.
          */
-        virtual uint8_t Release();
+        uint8_t Release();
         /**
          * Poll the USB Input endpoints and run the state machines.
          * @return 0 on success.
          */
-        virtual uint8_t Poll();
+        uint8_t Poll();
 
         /**
          * Get the device address.
@@ -284,7 +276,7 @@ public:
          * @param  klass The device's USB class.
          * @return       Returns true if the device's USB class matches this driver.
          */
-        virtual boolean DEVCLASSOK(uint8_t klass) {
+        virtual bool DEVCLASSOK(uint8_t klass) {
                 return (klass == USB_CLASS_WIRELESS_CTRL);
         };
 
@@ -295,8 +287,8 @@ public:
          * @param  pid The device's PID.
          * @return     Returns true if the device's VID and PID matches this driver.
          */
-        virtual boolean VIDPIDOK(uint16_t vid, uint16_t pid) {
-                if(vid == IOGEAR_GBU521_VID && pid == IOGEAR_GBU521_PID)
+        virtual bool VIDPIDOK(uint16_t vid, uint16_t pid) {
+                if((vid == IOGEAR_GBU521_VID && pid == IOGEAR_GBU521_PID) || (vid == BELKIN_F8T065BF_VID && pid == BELKIN_F8T065BF_PID))
                         return true;
                 if(my_bdaddr[0] != 0x00 || my_bdaddr[1] != 0x00 || my_bdaddr[2] != 0x00 || my_bdaddr[3] != 0x00 || my_bdaddr[4] != 0x00 || my_bdaddr[5] != 0x00) { // Check if Bluetooth address is set
                         if(vid == PS3_VID && (pid == PS3_PID || pid == PS3NAVIGATION_PID || pid == PS3MOVE_PID))
@@ -315,29 +307,25 @@ public:
          * @param proto Interface Protocol.
          * @param ep    Endpoint Descriptor.
          */
-        virtual void EndpointXtract(uint8_t conf, uint8_t iface, uint8_t alt, uint8_t proto, const USB_ENDPOINT_DESCRIPTOR *ep);
+        void EndpointXtract(uint8_t conf, uint8_t iface, uint8_t alt, uint8_t proto, const USB_ENDPOINT_DESCRIPTOR *ep);
         /**@}*/
 
         /** Disconnects both the L2CAP Channel and the HCI Connection for all Bluetooth services. */
-        void disconnect() {
-                for(uint8_t i = 0; i < BTD_NUM_SERVICES; i++)
-                        if(btService[i])
-                                btService[i]->disconnect();
-        };
+        void disconnect();
 
         /**
          * Register Bluetooth dongle members/services.
          * @param  pService Pointer to BluetoothService class instance.
          * @return          The service ID on success or -1 on fail.
          */
-        int8_t registerServiceClass(BluetoothService *pService) {
+        int8_t registerBluetoothService(BluetoothService *pService) {
                 for(uint8_t i = 0; i < BTD_NUM_SERVICES; i++) {
                         if(!btService[i]) {
                                 btService[i] = pService;
                                 return i; // Return ID
                         }
                 }
-                return -1; // ErrorregisterServiceClass
+                return -1; // Error registering BluetoothService
         };
 
         /** @name HCI Commands */
@@ -353,11 +341,17 @@ public:
         void hci_read_bdaddr();
         /** Read the HCI Version of the Bluetooth dongle. */
         void hci_read_local_version_information();
+        /** Used to check if the dongle supports simple paring */
+        void hci_read_local_extended_features(uint8_t page_number);
         /**
          * Set the local name of the Bluetooth dongle.
          * @param name Desired name.
          */
-        void hci_set_local_name(const char* name);
+        void hci_write_local_name(const char* name);
+        /** Used to enable simply paring if the dongle supports it */
+        void hci_write_simple_pairing_mode(bool enable);
+        /** Used to enable events related to simple paring */
+        void hci_set_event_mask();
         /** Enable visibility to other Bluetooth devices. */
         void hci_write_scan_enable();
         /** Disable visibility to other Bluetooth devices. */
@@ -384,6 +378,8 @@ public:
          * if the Host does not have a stored Link Key for the connection.
          */
         void hci_link_key_request_negative_reply();
+        /** Used to during simple paring to confirm that the we want to connect */
+        void hci_user_confirmation_request_reply();
         /** Used to try to authenticate with the remote device. */
         void hci_authentication_request();
         /** Start a HCI inquiry. */
@@ -392,6 +388,8 @@ public:
         void hci_inquiry_cancel();
         /** Connect to last device communicated with. */
         void hci_connect();
+        /** Used during simple paring to reply to a IO capability request */
+        void hci_io_capability_request_reply();
         /**
          * Connect to device.
          * @param bdaddr Bluetooth address of the device.
@@ -468,7 +466,7 @@ public:
         /**@}*/
 
         /** Use this to see if it is waiting for a incoming connection. */
-        bool watingForConnection;
+        bool waitingForConnection;
         /** This is used by the service to know when to store the device information. */
         bool l2capConnectionClaimed;
         /** This is used by the SPP library to claim the current SDP incoming request. */
@@ -512,14 +510,15 @@ public:
         /** True if it's a Wii U Pro Controller. */
         bool wiiUProController;
 
-        /** Call this function to pair with a Wiimote */
+        /** Call this function to pair with a HID device */
         void pairWithHID() {
+                waitingForConnection = false;
                 pairWithHIDDevice = true;
                 hci_state = HCI_CHECK_DEVICE_SERVICE;
         };
-        /** Used to only send the ACL data to the Wiimote. */
+        /** Used to only send the ACL data to the HID device. */
         bool connectToHIDDevice;
-        /** True if a Wiimote is connecting. */
+        /** True if a HID device is connecting. */
         bool incomingHIDDevice;
         /** True when it should pair with a device like a mouse or keyboard. */
         bool pairWithHIDDevice;
@@ -531,6 +530,9 @@ public:
         uint8_t readPollInterval() {
                 return pollInterval;
         };
+
+        /** Used by the drivers to enable simple pairing */
+        bool useSimplePairing;
 
 protected:
         /** Pointer to USB class instance. */
@@ -569,9 +571,12 @@ private:
         uint16_t PID, VID; // PID and VID of device connected
 
         uint8_t pollInterval;
+        bool simple_pairing_supported;
         bool bPollEnable;
 
-        bool incomingPS4; // True if a PS4 controller is connecting
+        bool pairWiiUsingSync; // True if pairing was done using the Wii SYNC button.
+        bool checkRemoteName; // Used to check remote device's name before connecting.
+        bool incomingPSController; // True if a PS4/PS5 controller is connecting
         uint8_t classOfDevice[3]; // Class of device of last device
 
         /* Variables used by high level HCI task */
@@ -594,4 +599,61 @@ private:
         void setBdaddr(uint8_t* BDADDR);
         void setMoveBdaddr(uint8_t* BDADDR);
 };
+
+/** All Bluetooth services should inherit this class. */
+class BluetoothService {
+public:
+        BluetoothService(BTD *p) : pBtd(p) {
+                if(pBtd)
+                        pBtd->registerBluetoothService(this); // Register it as a Bluetooth service
+        };
+        /**
+         * Used to pass acldata to the Bluetooth service.
+         * @param ACLData Pointer to the incoming acldata.
+         */
+        virtual void ACLData(uint8_t* ACLData) = 0;
+        /** Used to run the different state machines in the Bluetooth service. */
+        virtual void Run() = 0;
+        /** Used to reset the Bluetooth service. */
+        virtual void Reset() = 0;
+        /** Used to disconnect both the L2CAP Channel and the HCI Connection for the Bluetooth service. */
+        virtual void disconnect() = 0;
+
+        /**
+         * Used to call your own function when the device is successfully initialized.
+         * @param funcOnInit Function to call.
+         */
+        void attachOnInit(void (*funcOnInit)(void)) {
+                pFuncOnInit = funcOnInit; // TODO: This really belong in a class of it's own as it is repeated several times
+        };
+
+protected:
+        /**
+         * Called when a device is successfully initialized.
+         * Use attachOnInit(void (*funcOnInit)(void)) to call your own function.
+         * This is useful for instance if you want to set the LEDs in a specific way.
+         */
+        virtual void onInit() = 0;
+
+        /** Used to check if the incoming L2CAP data matches the HCI Handle */
+        bool checkHciHandle(uint8_t *buf, uint16_t handle) {
+                return (buf[0] == (handle & 0xFF)) && (buf[1] == ((handle >> 8) | 0x20));
+        }
+
+        /** Pointer to function called in onInit(). */
+        void (*pFuncOnInit)(void);
+
+        /** Pointer to BTD instance. */
+        BTD *pBtd;
+
+        /** The HCI Handle for the connection. */
+        uint16_t hci_handle;
+
+        /** L2CAP flags of received Bluetooth events. */
+        uint32_t l2cap_event_flag;
+
+        /** Identifier for L2CAP commands. */
+        uint8_t identifier;
+};
+
 #endif

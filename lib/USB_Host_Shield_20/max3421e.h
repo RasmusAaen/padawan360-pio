@@ -1,11 +1,18 @@
 /* Copyright (C) 2011 Circuits At Home, LTD. All rights reserved.
 
-This software may be distributed and modified under the terms of the GNU
-General Public License version 2 (GPL2) as published by the Free Software
-Foundation and appearing in the file GPL2.TXT included in the packaging of
-this file. Please note that GPL2 Section 2[b] requires that all works based
-on this software must also be made publicly available under the terms of
-the GPL2 ("Copyleft").
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 Contact information
 -------------------
@@ -24,11 +31,6 @@ e-mail   :  support@circuitsathome.com
 
 /* Arduino pin definitions */
 /* pin numbers to port numbers */
-
-
-//#define MAX_INT   9		// Duemielanove
-
-//#define MAX_GPX   8
 
 #define SE0     0
 #define SE1     1
@@ -150,7 +152,7 @@ e-mail   :  support@circuitsathome.com
 #define bmFRAMEIRQ      0x40
 #define bmHXFRDNIRQ     0x80
 
-#define rHIEN			0xd0    //26<<3
+#define rHIEN           0xd0    //26<<3
 
 /* HIEN Bits */
 #define bmBUSEVENTIE    0x01
@@ -162,7 +164,7 @@ e-mail   :  support@circuitsathome.com
 #define bmFRAMEIE       0x40
 #define bmHXFRDNIE      0x80
 
-#define rMODE			0xd8    //27<<3
+#define rMODE           0xd8    //27<<3
 
 /* MODE Bits */
 #define bmHOST          0x01

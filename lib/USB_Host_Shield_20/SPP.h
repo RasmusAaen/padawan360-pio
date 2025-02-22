@@ -20,12 +20,6 @@
 
 #include "BTD.h"
 
-/* Used for SDP */
-#define SDP_SERVICE_SEARCH_ATTRIBUTE_REQUEST_PDU    0x06 // See the RFCOMM specs
-#define SDP_SERVICE_SEARCH_ATTRIBUTE_RESPONSE_PDU   0x07 // See the RFCOMM specs
-#define SERIALPORT_UUID     0x1101 // See http://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm
-#define L2CAP_UUID          0x0100
-
 /* Used for RFCOMM */
 #define RFCOMM_SABM     0x2F
 #define RFCOMM_UA       0x63
@@ -68,6 +62,11 @@ public:
          */
         SPP(BTD *p, const char *name = "Arduino", const char *pin = "0000");
 
+        /** @name BluetoothService implementation */
+        /** Used this to disconnect the virtual serial port. */
+        void disconnect();
+        /**@}*/
+
         /**
          * Used to provide Boolean tests for the class.
          * @return Return true if SPP communication is connected.
@@ -78,41 +77,27 @@ public:
         /** Variable used to indicate if the connection is established. */
         bool connected;
 
-        /** @name BluetoothService implementation */
-        /**
-         * Used to pass acldata to the services.
-         * @param ACLData Incoming acldata.
-         */
-        virtual void ACLData(uint8_t* ACLData);
-        /** Used to establish the connection automatically. */
-        virtual void Run();
-        /** Use this to reset the service. */
-        virtual void Reset();
-        /** Used this to disconnect the virtual serial port. */
-        virtual void disconnect();
-        /**@}*/
-
         /** @name Serial port profile (SPP) Print functions */
         /**
          * Get number of bytes waiting to be read.
          * @return Return the number of bytes ready to be read.
          */
-        virtual int available(void);
+        int available(void);
 
         /** Send out all bytes in the buffer. */
-        virtual void flush(void) {
+        void flush(void) {
                 send();
         };
         /**
          * Used to read the next value in the buffer without advancing to the next one.
          * @return Return the byte. Will return -1 if no bytes are available.
          */
-        virtual int peek(void);
+        int peek(void);
         /**
          * Used to read the buffer.
          * @return Return the byte. Will return -1 if no bytes are available.
          */
-        virtual int read(void);
+        int read(void);
 
 #if defined(ARDUINO) && ARDUINO >=100
         /**
@@ -120,28 +105,30 @@ public:
          * @param  data The byte to write.
          * @return      Return the number of bytes written.
          */
-        virtual size_t write(uint8_t data);
+        size_t write(uint8_t data);
         /**
          * Writes the bytes to send to a buffer. The message is send when either send() or after Usb.Task() is called.
          * @param  data The data array to send.
          * @param  size Size of the data.
          * @return      Return the number of bytes written.
          */
-        virtual size_t write(const uint8_t* data, size_t size);
+        size_t write(const uint8_t* data, size_t size);
         /** Pull in write(const char *str) from Print */
+#if !defined(RBL_NRF51822) && !defined(NRF52_SERIES)
         using Print::write;
+#endif
 #else
         /**
          * Writes the byte to send to a buffer. The message is send when either send() or after Usb.Task() is called.
          * @param  data The byte to write.
          */
-        virtual void write(uint8_t data);
+        void write(uint8_t data);
         /**
          * Writes the bytes to send to a buffer. The message is send when either send() or after Usb.Task() is called.
          * @param data The data array to send.
          * @param size Size of the data.
          */
-        virtual void write(const uint8_t* data, size_t size);
+        void write(const uint8_t* data, size_t size);
 #endif
 
         /** Discard all the bytes in the buffer. */
@@ -154,20 +141,33 @@ public:
         void send(void);
         /**@}*/
 
-private:
-        /* Bluetooth dongle library pointer */
-        BTD *pBtd;
+protected:
+        /** @name BluetoothService implementation */
+        /**
+         * Used to pass acldata to the services.
+         * @param ACLData Incoming acldata.
+         */
+        void ACLData(uint8_t* ACLData);
+        /** Used to establish the connection automatically. */
+        void Run();
+        /** Use this to reset the service. */
+        void Reset();
+        /**
+         * Called when a device is successfully initialized.
+         * Use attachOnInit(void (*funcOnInit)(void)) to call your own function.
+         * This is useful for instance if you want to set the LEDs in a specific way.
+         */
+        void onInit();
+        /**@}*/
 
+private:
         /* Set true when a channel is created */
         bool SDPConnected;
         bool RFCOMMConnected;
 
-        uint16_t hci_handle; // The HCI Handle for the connection
-
         /* Variables used by L2CAP state machines */
         uint8_t l2cap_sdp_state;
         uint8_t l2cap_rfcomm_state;
-        uint32_t l2cap_event_flag; // l2cap flags of received Bluetooth events
 
         uint8_t l2capoutbuf[BULK_MAXPKTSIZE]; // General purpose buffer for l2cap out data
         uint8_t rfcommbuf[10]; // Buffer for RFCOMM Commands
@@ -177,7 +177,6 @@ private:
         uint8_t sdp_dcid[2]; // 0x0050
         uint8_t rfcomm_scid[2]; // L2CAP source CID for RFCOMM
         uint8_t rfcomm_dcid[2]; // 0x0051
-        uint8_t identifier; // Identifier for command
 
         /* RFCOMM Variables */
         uint8_t rfcommChannel;
@@ -187,7 +186,7 @@ private:
         uint8_t rfcommChannelType;
         uint8_t rfcommPfBit;
 
-        unsigned long timer;
+        uint32_t timer;
         bool waitForLastCommand;
         bool creditSent;
 

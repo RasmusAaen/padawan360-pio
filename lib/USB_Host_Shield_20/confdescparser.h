@@ -1,11 +1,18 @@
 /* Copyright (C) 2011 Circuits At Home, LTD. All rights reserved.
 
-This software may be distributed and modified under the terms of the GNU
-General Public License version 2 (GPL2) as published by the Free Software
-Foundation and appearing in the file GPL2.TXT included in the packaging of
-this file. Please note that GPL2 Section 2[b] requires that all works based
-on this software must also be made publicly available under the terms of
-the GPL2 ("Copyleft").
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 Contact information
 -------------------
@@ -24,13 +31,15 @@ class UsbConfigXtracter {
 public:
         //virtual void ConfigXtract(const USB_CONFIGURATION_DESCRIPTOR *conf) = 0;
         //virtual void InterfaceXtract(uint8_t conf, const USB_INTERFACE_DESCRIPTOR *iface) = 0;
-        virtual void EndpointXtract(uint8_t conf, uint8_t iface, uint8_t alt, uint8_t proto, const USB_ENDPOINT_DESCRIPTOR *ep) = 0;
+
+        virtual void EndpointXtract(uint8_t conf __attribute__((unused)), uint8_t iface __attribute__((unused)), uint8_t alt __attribute__((unused)), uint8_t proto __attribute__((unused)), const USB_ENDPOINT_DESCRIPTOR *ep __attribute__((unused))) {
+        };
 };
 
-#define CP_MASK_COMPARE_CLASS			1
-#define CP_MASK_COMPARE_SUBCLASS		2
-#define CP_MASK_COMPARE_PROTOCOL		4
-#define CP_MASK_COMPARE_ALL			7
+#define CP_MASK_COMPARE_CLASS                   1
+#define CP_MASK_COMPARE_SUBCLASS                2
+#define CP_MASK_COMPARE_PROTOCOL                4
+#define CP_MASK_COMPARE_ALL                     7
 
 // Configuration Descriptor Parser Class Template
 
@@ -63,7 +72,7 @@ public:
                 UseOr = true;
         }
         ConfigDescParser(UsbConfigXtracter *xtractor);
-        virtual void Parse(const uint16_t len, const uint8_t *pbuf, const uint16_t &offset);
+        void Parse(const uint16_t len, const uint8_t *pbuf, const uint16_t &offset);
 };
 
 template <const uint8_t CLASS_ID, const uint8_t SUBCLASS_ID, const uint8_t PROTOCOL_ID, const uint8_t MASK>
@@ -79,7 +88,7 @@ UseOr(false) {
 };
 
 template <const uint8_t CLASS_ID, const uint8_t SUBCLASS_ID, const uint8_t PROTOCOL_ID, const uint8_t MASK>
-void ConfigDescParser<CLASS_ID, SUBCLASS_ID, PROTOCOL_ID, MASK>::Parse(const uint16_t len, const uint8_t *pbuf, const uint16_t &offset) {
+void ConfigDescParser<CLASS_ID, SUBCLASS_ID, PROTOCOL_ID, MASK>::Parse(const uint16_t len, const uint8_t *pbuf, const uint16_t &offset __attribute__((unused))) {
         uint16_t cntdn = (uint16_t)len;
         uint8_t *p = (uint8_t*)pbuf;
 
@@ -99,36 +108,37 @@ bool ConfigDescParser<CLASS_ID, SUBCLASS_ID, PROTOCOL_ID, MASK>::ParseDescriptor
                         theBuffer.valueSize = 2;
                         valParser.Initialize(&theBuffer);
                         stateParseDescr = 1;
+                        // fall through
                 case 1:
                         if(!valParser.Parse(pp, pcntdn))
                                 return false;
                         dscrLen = *((uint8_t*)theBuffer.pValue);
                         dscrType = *((uint8_t*)theBuffer.pValue + 1);
                         stateParseDescr = 2;
+                        // fall through
                 case 2:
                         // This is a sort of hack. Assuming that two bytes are all ready in the buffer
-                        //	the pointer is positioned two bytes ahead in order for the rest of descriptor
-                        //	to be read right after the size and the type fields.
+                        //      the pointer is positioned two bytes ahead in order for the rest of descriptor
+                        //      to be read right after the size and the type fields.
                         // This should be used carefully. varBuffer should be used directly to handle data
-                        //	in the buffer.
+                        //      in the buffer.
                         theBuffer.pValue = varBuffer + 2;
                         stateParseDescr = 3;
+                        // fall through
                 case 3:
                         switch(dscrType) {
                                 case USB_DESCRIPTOR_INTERFACE:
                                         isGoodInterface = false;
+                                        break;
                                 case USB_DESCRIPTOR_CONFIGURATION:
-                                        theBuffer.valueSize = sizeof (USB_CONFIGURATION_DESCRIPTOR) - 2;
-                                        break;
                                 case USB_DESCRIPTOR_ENDPOINT:
-                                        theBuffer.valueSize = sizeof (USB_ENDPOINT_DESCRIPTOR) - 2;
-                                        break;
                                 case HID_DESCRIPTOR_HID:
-                                        theBuffer.valueSize = dscrLen - 2;
                                         break;
                         }
+                        theBuffer.valueSize = dscrLen - 2;
                         valParser.Initialize(&theBuffer);
                         stateParseDescr = 4;
+                        // fall through
                 case 4:
                         switch(dscrType) {
                                 case USB_DESCRIPTOR_CONFIGURATION:
@@ -163,10 +173,10 @@ bool ConfigDescParser<CLASS_ID, SUBCLASS_ID, PROTOCOL_ID, MASK>::ParseDescriptor
                                                         theXtractor->EndpointXtract(confValue, ifaceNumber, ifaceAltSet, protoValue, (USB_ENDPOINT_DESCRIPTOR*)varBuffer);
                                         break;
                                         //case HID_DESCRIPTOR_HID:
-                                        //	if (!valParser.Parse(pp, pcntdn))
-                                        //		return false;
-                                        //	PrintHidDescriptor((const USB_HID_DESCRIPTOR*)varBuffer);
-                                        //	break;
+                                        //      if (!valParser.Parse(pp, pcntdn))
+                                        //              return false;
+                                        //      PrintHidDescriptor((const USB_HID_DESCRIPTOR*)varBuffer);
+                                        //      break;
                                 default:
                                         if(!theSkipper.Skip(pp, pcntdn, dscrLen - 2))
                                                 return false;
@@ -194,12 +204,6 @@ void ConfigDescParser<CLASS_ID, SUBCLASS_ID, PROTOCOL_ID, MASK>::PrintHidDescrip
 
         Notify(PSTR("\r\nbNumDescriptors:\t"), 0x80);
         PrintHex<uint8_t > (pDesc->bNumDescriptors, 0x80);
-
-        //Notify(PSTR("\r\nbDescrType:\t\t"));
-        //PrintHex<uint8_t>(pDesc->bDescrType);
-        //
-        //Notify(PSTR("\r\nwDescriptorLength:\t"));
-        //PrintHex<uint16_t>(pDesc->wDescriptorLength);
 
         for(uint8_t i = 0; i < pDesc->bNumDescriptors; i++) {
                 HID_CLASS_DESCRIPTOR_LEN_AND_TYPE *pLT = (HID_CLASS_DESCRIPTOR_LEN_AND_TYPE*)&(pDesc->bDescrType);

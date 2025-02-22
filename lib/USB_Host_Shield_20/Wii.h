@@ -24,8 +24,9 @@
 #include "controllerEnums.h"
 
 /* Wii event flags */
-#define WII_FLAG_MOTION_PLUS_CONNECTED  0x01
-#define WII_FLAG_NUNCHUCK_CONNECTED     0x02
+#define WII_FLAG_MOTION_PLUS_CONNECTED          (1 << 0)
+#define WII_FLAG_NUNCHUCK_CONNECTED             (1 << 1)
+#define WII_FLAG_CALIBRATE_BALANCE_BOARD        (1 << 2)
 
 #define wii_check_flag(flag)  (wii_event_flag & (flag))
 #define wii_set_flag(flag)  (wii_event_flag |= (flag))
@@ -37,6 +38,14 @@ enum HatEnum {
         HatX = 0,
         /** Read the y-axis on the Nunchuck joystick. */
         HatY = 1,
+};
+
+/** Enum used to read the weight on Wii Balance Board. */
+enum BalanceBoardEnum {
+        TopRight = 0,
+        BotRight = 1,
+        TopLeft = 2,
+        BotLeft = 3,
 };
 
 /**
@@ -55,17 +64,8 @@ public:
         WII(BTD *p, bool pair = false);
 
         /** @name BluetoothService implementation */
-        /**
-         * Used to pass acldata to the services.
-         * @param ACLData Incoming acldata.
-         */
-        virtual void ACLData(uint8_t* ACLData);
-        /** Used to run part of the state machine. */
-        virtual void Run();
-        /** Use this to reset the service. */
-        virtual void Reset();
         /** Used this to disconnect any of the controllers. */
-        virtual void disconnect();
+        void disconnect();
         /**@}*/
 
         /** @name Wii Controller functions */
@@ -85,7 +85,7 @@ public:
 
         /** @name Wii Controller functions */
 
-        /** Call this to start the paring sequence with a controller */
+        /** Call this to start the pairing sequence with a controller */
         void pair(void) {
                 if(pBtd)
                         pBtd->pairWithWiimote();
@@ -107,7 +107,7 @@ public:
          * Pitch calculated from the Wiimote. A complimentary filter is used if the Motion Plus is connected.
          * @return Pitch in the range from 0-360.
          */
-        double getPitch() {
+        float getPitch() {
                 if(motionPlusConnected)
                         return compPitch;
                 return getWiimotePitch();
@@ -117,7 +117,7 @@ public:
          * Roll calculated from the Wiimote. A complimentary filter is used if the Motion Plus is connected.
          * @return Roll in the range from 0-360.
          */
-        double getRoll() {
+        float getRoll() {
                 if(motionPlusConnected)
                         return compRoll;
                 return getWiimoteRoll();
@@ -129,7 +129,7 @@ public:
          * <B>NOTE:</B> This angle will drift a lot and is only available if the Motion Plus extension is connected.
          * @return The angle calculated using the gyro.
          */
-        double getYaw() {
+        float getYaw() {
                 return gyroYaw;
         };
 
@@ -189,14 +189,6 @@ public:
         uint8_t getWiiState() {
                 return wiiState;
         };
-
-        /**
-         * Used to call your own function when the controller is successfully initialized.
-         * @param funcOnInit Function to call.
-         */
-        void attachOnInit(void (*funcOnInit)(void)) {
-                pFuncOnInit = funcOnInit;
-        };
         /**@}*/
 
         /**@{*/
@@ -208,6 +200,8 @@ public:
         bool motionPlusConnected;
         /** Variable used to indicate if a Wii U Pro controller is connected. */
         bool wiiUProControllerConnected;
+        /** Variable used to indicate if a Wii Balance Board is connected. */
+        bool wiiBalanceBoardConnected;
         /**@}*/
 
         /* IMU Data, might be usefull if you need to do something more advanced than just calculating the angle */
@@ -215,24 +209,24 @@ public:
         /**@{*/
 
         /** Pitch and roll calculated from the accelerometer inside the Wiimote. */
-        double getWiimotePitch() {
-                return (atan2(accYwiimote, accZwiimote) + PI) * RAD_TO_DEG;
+        float getWiimotePitch() {
+                return (atan2f(accYwiimote, accZwiimote) + PI) * RAD_TO_DEG;
         };
 
-        double getWiimoteRoll() {
-                return (atan2(accXwiimote, accZwiimote) + PI) * RAD_TO_DEG;
+        float getWiimoteRoll() {
+                return (atan2f(accXwiimote, accZwiimote) + PI) * RAD_TO_DEG;
         };
         /**@}*/
 
         /**@{*/
 
         /** Pitch and roll calculated from the accelerometer inside the Nunchuck. */
-        double getNunchuckPitch() {
-                return (atan2(accYnunchuck, accZnunchuck) + PI) * RAD_TO_DEG;
+        float getNunchuckPitch() {
+                return (atan2f(accYnunchuck, accZnunchuck) + PI) * RAD_TO_DEG;
         };
 
-        double getNunchuckRoll() {
-                return (atan2(accXnunchuck, accZnunchuck) + PI) * RAD_TO_DEG;
+        float getNunchuckRoll() {
+                return (atan2f(accXnunchuck, accZnunchuck) + PI) * RAD_TO_DEG;
         };
         /**@}*/
 
@@ -244,17 +238,17 @@ public:
 
         /* Variables for the gyro inside the Motion Plus */
         /** This is the pitch calculated by the gyro - use this to tune WII#pitchGyroScale. */
-        double gyroPitch;
+        float gyroPitch;
         /** This is the roll calculated by the gyro - use this to tune WII#rollGyroScale. */
-        double gyroRoll;
+        float gyroRoll;
         /** This is the yaw calculated by the gyro - use this to tune WII#yawGyroScale. */
-        double gyroYaw;
+        float gyroYaw;
 
         /**@{*/
         /** The speed in deg/s from the gyro. */
-        double pitchGyroSpeed;
-        double rollGyroSpeed;
-        double yawGyroSpeed;
+        float pitchGyroSpeed;
+        float rollGyroSpeed;
+        float yawGyroSpeed;
         /**@}*/
 
         /**@{*/
@@ -276,6 +270,31 @@ public:
         int16_t gyroYawZero;
         int16_t gyroRollZero;
         int16_t gyroPitchZero;
+        /**@}*/
+
+        /** @name Wii Balance Board functions */
+
+        /**
+         * Used to get the weight at the specific position on the Wii Balance Board.
+         * @param  pos ::BalanceBoardEnum to read from.
+         * @return     Returns the weight in kg.
+         */
+        float getWeight(BalanceBoardEnum pos);
+
+        /**
+         * Used to get total weight on the Wii Balance Board.
+         * @return Returns the weight in kg.
+         */
+        float getTotalWeight();
+
+        /**
+         * Used to get the raw reading at the specific position on the Wii Balance Board.
+         * @param  pos ::BalanceBoardEnum to read from.
+         * @return     Returns the raw reading.
+         */
+        uint16_t getWeightRaw(BalanceBoardEnum pos) {
+                return wiiBalanceBoardRaw[pos];
+        };
         /**@}*/
 
 #ifdef WIICAMERA
@@ -392,26 +411,36 @@ public:
         /**@}*/
 #endif
 
-private:
-        BTD *pBtd; // Pointer to BTD instance
-
+protected:
+        /** @name BluetoothService implementation */
+        /**
+         * Used to pass acldata to the services.
+         * @param ACLData Incoming acldata.
+         */
+        void ACLData(uint8_t* ACLData);
+        /** Used to run part of the state machine. */
+        void Run();
+        /** Use this to reset the service. */
+        void Reset();
         /**
          * Called when the controller is successfully initialized.
          * Use attachOnInit(void (*funcOnInit)(void)) to call your own function.
          * This is useful for instance if you want to set the LEDs in a specific way.
          */
         void onInit();
-        void (*pFuncOnInit)(void); // Pointer to function called in onInit()
+        /**@}*/
+
+private:
+        static int8_t getButtonIndexWii(ButtonEnum b);
+        static int8_t getButtonIndexWiiPro(ButtonEnum b);
 
         void L2CAP_task(); // L2CAP state machine
 
         /* Variables filled from HCI event management */
-        uint16_t hci_handle;
         bool activeConnection; // Used to indicate if it's already has established a connection
 
         /* Variables used by high level L2CAP task */
         uint8_t l2cap_state;
-        uint32_t l2cap_event_flag; // L2CAP flags of received Bluetooth events
         uint8_t wii_event_flag; // Used for Wii flags
 
         uint32_t ButtonState;
@@ -424,7 +453,7 @@ private:
         uint16_t stateCounter;
         bool unknownExtensionConnected;
         bool extensionConnected;
-        bool checkExtension; // Set to false when getBatteryLevel() is called otherwise if should be true
+        bool checkBatteryLevel; // Set to true when getBatteryLevel() is called otherwise if should be false
         bool motionPlusInside; // True if it's a new Wiimote with the Motion Plus extension build into it
 
         /* L2CAP Channels */
@@ -432,7 +461,6 @@ private:
         uint8_t control_dcid[2]; // 0x0060
         uint8_t interrupt_scid[2]; // L2CAP source CID for HID_Interrupt
         uint8_t interrupt_dcid[2]; // 0x0061
-        uint8_t identifier; // Identifier for connection
 
         /* HID Commands */
         void HID_Command(uint8_t* data, uint8_t nbytes);
@@ -447,17 +475,21 @@ private:
         void readData(uint32_t offset, uint16_t size, bool EEPROM);
         void readExtensionType();
         void readCalData();
+        void readWiiBalanceBoardCalibration(); // Used by the library to read the Wii Balance Board calibration values
 
         void checkMotionPresent(); // Used to see if a Motion Plus is connected to the Wiimote
         void initMotionPlus();
         void activateMotionPlus();
 
-        double compPitch; // Fusioned angle using a complimentary filter if the Motion Plus is connected
-        double compRoll; // Fusioned angle using a complimentary filter if the Motion Plus is connected
+        uint16_t wiiBalanceBoardRaw[4]; // Wii Balance Board raw values
+        uint16_t wiiBalanceBoardCal[3][4]; // Wii Balance Board calibration values
+
+        float compPitch; // Fusioned angle using a complimentary filter if the Motion Plus is connected
+        float compRoll; // Fusioned angle using a complimentary filter if the Motion Plus is connected
 
         bool activateNunchuck;
         bool motionValuesReset; // This bool is true when the gyro values has been reset
-        unsigned long timer;
+        uint32_t timer;
 
         uint8_t wiiState; // Stores the value in l2capinbuf[12] - (0x01: Battery is nearly empty), (0x02:  An Extension Controller is connected), (0x04: Speaker enabled), (0x08: IR enabled), (0x10: LED1, 0x20: LED2, 0x40: LED3, 0x80: LED4)
         uint8_t batteryLevel;

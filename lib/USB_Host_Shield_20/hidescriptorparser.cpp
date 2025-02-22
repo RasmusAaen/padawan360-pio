@@ -990,7 +990,7 @@ const char * const ReportDescParserBase::medInstrTitles4[] PROGMEM = {
         pstrUsageSoftControlAdjust
 };
 
-void ReportDescParserBase::Parse(const uint16_t len, const uint8_t *pbuf, const uint16_t &offset) {
+void ReportDescParserBase::Parse(const uint16_t len, const uint8_t *pbuf, const uint16_t &offset __attribute__((unused))) {
         uint16_t cntdn = (uint16_t)len;
         uint8_t *p = (uint8_t*)pbuf;
 
@@ -1005,7 +1005,7 @@ void ReportDescParserBase::Parse(const uint16_t len, const uint8_t *pbuf, const 
                 ParseItem(&p, &cntdn);
 
                 //if (ParseItem(&p, &cntdn))
-                //	return;
+                //        return;
         }
         //USBTRACE2("Total:", totalSize);
 }
@@ -1089,7 +1089,7 @@ void ReportDescParserBase::PrintItemTitle(uint8_t prefix) {
 }
 
 uint8_t ReportDescParserBase::ParseItem(uint8_t **pp, uint16_t *pcntdn) {
-        //uint8_t	ret = enErrorSuccess;
+        //uint8_t ret = enErrorSuccess;
         //reinterpret_cast<>(varBuffer);
         switch(itemParseState) {
                 case 0:
@@ -1113,16 +1113,19 @@ uint8_t ReportDescParserBase::ParseItem(uint8_t **pp, uint16_t *pcntdn) {
 
                         if(!pcntdn)
                                 return enErrorIncomplete;
+                        // fall through
                 case 1:
                         //USBTRACE2("\r\niSz:",itemSize);
 
                         theBuffer.valueSize = itemSize;
                         valParser.Initialize(&theBuffer);
                         itemParseState = 2;
+                        // fall through
                 case 2:
                         if(!valParser.Parse(pp, pcntdn))
                                 return enErrorIncomplete;
                         itemParseState = 3;
+                        // fall through
                 case 3:
                 {
                         uint8_t data = *((uint8_t*)varBuffer);
@@ -1233,22 +1236,10 @@ ReportDescParserBase::UsagePageFunc ReportDescParserBase::usagePageFunctions[] /
 void ReportDescParserBase::SetUsagePage(uint16_t page) {
         pfUsage = NULL;
 
-        if(VALUE_BETWEEN(page, 0x00, 0x11))
+        if(VALUE_BETWEEN(page, 0x00, 0x11)) {
                 pfUsage = (usagePageFunctions[page - 1]);
 
-                // Dead code...
-                //
-                //      pfUsage = (UsagePageFunc)pgm_read_pointer(usagePageFunctions[page - 1]);
-                //else if (page > 0x7f && page < 0x84)
-                //      E_Notify(pstrUsagePageMonitor);
-                //else if (page > 0x83 && page < 0x8c)
-                //	E_Notify(pstrUsagePagePower);
-                //else if (page > 0x8b && page < 0x92)
-                //	E_Notify((char*)pgm_read_pointer(&usagePageTitles1[page - 0x8c]));
-                //else if (page > 0xfeff && page <= 0xffff)
-                //	E_Notify(pstrUsagePageVendorDefined);
-                //
-        else
+        } else {
                 switch(page) {
                         case 0x14:
                                 pfUsage = &ReportDescParserBase::PrintAlphanumDisplayPageUsage;
@@ -1257,6 +1248,7 @@ void ReportDescParserBase::SetUsagePage(uint16_t page) {
                                 pfUsage = &ReportDescParserBase::PrintMedicalInstrumentPageUsage;
                                 break;
                 }
+        }
 }
 
 void ReportDescParserBase::PrintUsagePage(uint16_t page) {
@@ -1438,7 +1430,7 @@ void ReportDescParserBase::PrintMedicalInstrumentPageUsage(uint16_t usage) {
 }
 
 uint8_t ReportDescParser2::ParseItem(uint8_t **pp, uint16_t *pcntdn) {
-        //uint8_t	ret = enErrorSuccess;
+        //uint8_t ret = enErrorSuccess;
 
         switch(itemParseState) {
                 case 0:
@@ -1459,14 +1451,17 @@ uint8_t ReportDescParser2::ParseItem(uint8_t **pp, uint16_t *pcntdn) {
 
                         if(!pcntdn)
                                 return enErrorIncomplete;
+                        // fall through
                 case 1:
                         theBuffer.valueSize = itemSize;
                         valParser.Initialize(&theBuffer);
                         itemParseState = 2;
+                        // fall through
                 case 2:
                         if(!valParser.Parse(pp, pcntdn))
                                 return enErrorIncomplete;
                         itemParseState = 3;
+                        // fall through
                 case 3:
                 {
                         uint8_t data = *((uint8_t*)varBuffer);
@@ -1553,9 +1548,9 @@ void ReportDescParser2::OnInputItem(uint8_t itm) {
                 if(print_usemin_usemax)
                         pfUsage(usage);
 
-                // bits_left		- number of bits in the field(array of fields, depending on Report Count) left to process
-                // bits_of_byte		- number of bits in current byte left to process
-                // bits_to_copy		- number of bits to copy to result buffer
+                // bits_left            - number of bits in the field(array of fields, depending on Report Count) left to process
+                // bits_of_byte         - number of bits in current byte left to process
+                // bits_to_copy         - number of bits to copy to result buffer
 
                 // for each bit in a field
                 for(uint8_t bits_left = rptSize, bits_to_copy = 0; bits_left;
@@ -1589,7 +1584,7 @@ void ReportDescParser2::OnInputItem(uint8_t itm) {
         E_Notify(PSTR("\r\n"), 0x80);
 }
 
-void UniversalReportParser::Parse(HID *hid, bool is_rpt_id, uint8_t len, uint8_t *buf) {
+void UniversalReportParser::Parse(USBHID *hid, bool is_rpt_id __attribute__((unused)), uint8_t len, uint8_t *buf) {
         ReportDescParser2 prs(len, buf);
 
         uint8_t ret = hid->GetReportDescr(0, &prs);

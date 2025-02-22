@@ -37,17 +37,8 @@ public:
         BTHID(BTD *p, bool pair = false, const char *pin = "0000");
 
         /** @name BluetoothService implementation */
-        /**
-         * Used to pass acldata to the services.
-         * @param ACLData Incoming acldata.
-         */
-        virtual void ACLData(uint8_t* ACLData);
-        /** Used to run part of the state machine. */
-        virtual void Run();
-        /** Use this to reset the service. */
-        virtual void Reset();
         /** Used this to disconnect the devices. */
-        virtual void disconnect();
+        void disconnect();
         /**@}*/
 
         /**
@@ -76,75 +67,52 @@ public:
 
         /**
          * Set HID protocol mode.
-         * @param mode HID protocol to use. Either HID_BOOT_PROTOCOL or HID_RPT_PROTOCOL.
+         * @param mode HID protocol to use. Either USB_HID_BOOT_PROTOCOL or HID_RPT_PROTOCOL.
          */
         void setProtocolMode(uint8_t mode) {
                 protocolMode = mode;
         };
 
+        /**@{*/
         /**
          * Used to set the leds on a keyboard.
-         * @param data See KBDLEDS in hidboot.h
+         * @param data See ::KBDLEDS in hidboot.h
          */
+        void setLeds(struct KBDLEDS data) {
+                setLeds(*((uint8_t*)&data));
+        };
         void setLeds(uint8_t data);
+        /**@}*/
 
         /** True if a device is connected */
         bool connected;
 
-        /** Call this to start the paring sequence with a device */
+        /** Call this to start the pairing sequence with a device */
         void pair(void) {
                 if(pBtd)
                         pBtd->pairWithHID();
         };
 
         /**
-         * Used to call your own function when the device is successfully initialized.
-         * @param funcOnInit Function to call.
+         * Used to get the millis() of the last Bluetooth DATA input report received on the interrupt channel.
+         * This can be used detect if the connection to a Bluetooth device is lost fx if the battery runs out or if it gets out of range.
+         * @return      Timestamp in milliseconds of the last Bluetooth DATA input report received on the interrupt channel.
          */
-        void attachOnInit(void (*funcOnInit)(void)) {
-                pFuncOnInit = funcOnInit;
+        uint32_t getLastMessageTime() {
+                return lastBtDataInputIntMillis;
         };
 
 protected:
-        /** @name Overridable functions */
+        /** @name BluetoothService implementation */
         /**
-         * Used to parse Bluetooth HID data to any class that inherits this class.
-         * @param len The length of the incoming data.
-         * @param buf Pointer to the data buffer.
+         * Used to pass acldata to the services.
+         * @param ACLData Incoming acldata.
          */
-        virtual void ParseBTHIDData(uint8_t len, uint8_t *buf) {
-                return;
-        };
-        /** Called when a device is connected */
-        virtual void OnInitBTHID() {
-                return;
-        };
-        /** Used to reset any buffers in the class that inherits this */
-        virtual void ResetBTHID() {
-                return;
-        }
-        /**@}*/
-
-        /** Pointer to BTD instance */
-        BTD *pBtd;
-
-        /** HCI Handle for connection */
-        uint16_t hci_handle;
-
-        /** L2CAP source CID for HID_Control */
-
-        uint8_t control_scid[2];
-
-        /** L2CAP source CID for HID_Interrupt */
-        uint8_t interrupt_scid[2];
-
-private:
-        HIDReportParser *pRptParser[NUM_PARSERS]; // Pointer to HIDReportParsers.
-
-        /** Set report protocol. */
-        void setProtocol();
-        uint8_t protocolMode;
-
+        void ACLData(uint8_t* ACLData);
+        /** Used to run part of the state machine. */
+        void Run();
+        /** Use this to reset the service. */
+        void Reset();
         /**
          * Called when a device is successfully initialized.
          * Use attachOnInit(void (*funcOnInit)(void)) to call your own function.
@@ -155,17 +123,66 @@ private:
                         pFuncOnInit(); // Call the user function
                 OnInitBTHID();
         };
-        void (*pFuncOnInit)(void); // Pointer to function called in onInit()
+        /**@}*/
 
+        /** @name Overridable functions */
+        /**
+         * Used to parse Bluetooth HID data to any class that inherits this class.
+         * @param len The length of the incoming data.
+         * @param buf Pointer to the data buffer.
+         */
+        virtual void ParseBTHIDData(uint8_t len __attribute__((unused)), uint8_t *buf __attribute__((unused))) {
+                return;
+        };
+        /**
+         * Same as ParseBTHIDData for reports that are sent through the
+         * interrupt pipe (in response to a GET_REPORT).
+         */
+        virtual void ParseBTHIDControlData(uint8_t len __attribute__((unused)), uint8_t *buf __attribute__((unused))) {
+                return;
+        }
+        /** Called when a device is connected */
+        virtual void OnInitBTHID() {
+                return;
+        };
+        /** Used to reset any buffers in the class that inherits this */
+        virtual void ResetBTHID() {
+                return;
+        }
+        /**@}*/
+
+        /** L2CAP source CID for HID_Control */
+        uint8_t control_scid[2];
+
+        /** L2CAP source CID for HID_Interrupt */
+        uint8_t interrupt_scid[2];
+
+        uint8_t l2cap_sdp_state;
+        uint8_t sdp_scid[2]; // L2CAP source CID for SDP
+
+private:
+        HIDReportParser *pRptParser[NUM_PARSERS]; // Pointer to HIDReportParsers.
+
+        uint8_t l2capoutbuf[BULK_MAXPKTSIZE]; // General purpose buffer for l2cap out data
+        void SDP_Command(uint8_t* data, uint8_t nbytes);
+        void serviceNotSupported(uint8_t transactionIDHigh, uint8_t transactionIDLow);
+
+        /** Set report protocol. */
+        void setProtocol();
+        uint8_t protocolMode;
+
+        void SDP_task();
         void L2CAP_task(); // L2CAP state machine
 
         bool activeConnection; // Used to indicate if it already has established a connection
+        bool SDPConnected;
 
         /* Variables used for L2CAP communication */
         uint8_t control_dcid[2]; // L2CAP device CID for HID_Control - Always 0x0070
         uint8_t interrupt_dcid[2]; // L2CAP device CID for HID_Interrupt - Always 0x0071
-        uint8_t identifier; // Identifier for connection
+        uint8_t sdp_dcid[2];
         uint8_t l2cap_state;
-        uint32_t l2cap_event_flag; // l2cap flags of received Bluetooth events
+
+        uint32_t lastBtDataInputIntMillis; // Variable used to store the millis value of the last Bluetooth DATA input report received on the interrupt channel
 };
 #endif

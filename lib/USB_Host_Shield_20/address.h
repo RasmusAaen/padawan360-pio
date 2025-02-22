@@ -1,11 +1,18 @@
 /* Copyright (C) 2011 Circuits At Home, LTD. All rights reserved.
 
-This software may be distributed and modified under the terms of the GNU
-General Public License version 2 (GPL2) as published by the Free Software
-Foundation and appearing in the file GPL2.TXT included in the packaging of
-this file. Please note that GPL2 Section 2[b] requires that all works based
-on this software must also be made publicly available under the terms of
-the GPL2 ("Copyleft").
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 Contact information
 -------------------
@@ -24,10 +31,10 @@ e-mail   :  support@circuitsathome.com
 
 /* NAK powers. To save space in endpoint data structure, amount of retries before giving up and returning 0x4 is stored in */
 /* bmNakPower as a power of 2. The actual nak_limit is then calculated as nak_limit = ( 2^bmNakPower - 1) */
-#define USB_NAK_MAX_POWER		15		//NAK binary order maximum value
-#define USB_NAK_DEFAULT			14		//default 32K-1 NAKs before giving up
-#define USB_NAK_NOWAIT			1		//Single NAK stops transfer
-#define USB_NAK_NONAK			0		//Do not count NAKs, stop retrying after USB Timeout
+#define USB_NAK_MAX_POWER               15              //NAK binary order maximum value
+#define USB_NAK_DEFAULT                 14              //default 32K-1 NAKs before giving up
+#define USB_NAK_NOWAIT                  1               //Single NAK stops transfer
+#define USB_NAK_NONAK                   0               //Do not count NAKs, stop retrying after USB Timeout
 
 struct EpInfo {
         uint8_t epAddr; // Endpoint address
@@ -44,7 +51,7 @@ struct EpInfo {
         };
 } __attribute__((packed));
 
-//	  7   6   5   4   3   2   1   0
+//        7   6   5   4   3   2   1   0
 //  ---------------------------------
 //  |   | H | P | P | P | A | A | A |
 //  ---------------------------------
@@ -68,16 +75,16 @@ struct UsbDeviceAddress {
         };
 } __attribute__((packed));
 
-#define bmUSB_DEV_ADDR_ADDRESS		0x07
-#define bmUSB_DEV_ADDR_PARENT		0x38
-#define bmUSB_DEV_ADDR_HUB		0x40
+#define bmUSB_DEV_ADDR_ADDRESS          0x07
+#define bmUSB_DEV_ADDR_PARENT           0x38
+#define bmUSB_DEV_ADDR_HUB              0x40
 
 struct UsbDevice {
         EpInfo *epinfo; // endpoint info pointer
         UsbDeviceAddress address;
         uint8_t epcount; // number of endpoints
         bool lowspeed; // indicates if a device is the low speed one
-        //	uint8_t			devclass;		// device class
+        //      uint8_t devclass; // device class
 } __attribute__((packed));
 
 class AddressPool {
@@ -89,8 +96,8 @@ public:
 
 typedef void (*UsbDeviceHandleFunc)(UsbDevice *pdev);
 
-#define ADDR_ERROR_INVALID_INDEX		0xFF
-#define ADDR_ERROR_INVALID_ADDRESS		0xFF
+#define ADDR_ERROR_INVALID_INDEX                0xFF
+#define ADDR_ERROR_INVALID_ADDRESS              0xFF
 
 template <const uint8_t MAX_DEVICES_ALLOWED>
 class AddressPoolImpl : public AddressPool {
@@ -169,7 +176,8 @@ public:
                 thePool[0].epinfo = &dev0ep;
                 dev0ep.epAddr = 0;
                 dev0ep.maxPktSize = 8;
-                dev0ep.epAttribs = 0; //set DATA0/1 toggles to 0
+                dev0ep.bmSndToggle = 0; // Set DATA0/1 toggles to 0
+                dev0ep.bmRcvToggle = 0;
                 dev0ep.bmNakPower = USB_NAK_MAX_POWER;
 
                 InitAllAddresses();
@@ -265,17 +273,17 @@ public:
         // It can be rather helpfull to find out if there are hubs attached than getting the exact number of hubs.
         //uint8_t GetNumHubs()
         //{
-        //	return hubCounter;
+        //        return hubCounter;
         //};
         //uint8_t GetNumDevices()
         //{
-        //	uint8_t counter = 0;
+        //        uint8_t counter = 0;
 
-        //	for (uint8_t i=1; i<MAX_DEVICES_ALLOWED; i++)
-        //		if (thePool[i].address != 0);
-        //			counter ++;
+        //        for (uint8_t i=1; i<MAX_DEVICES_ALLOWED; i++)
+        //                if (thePool[i].address != 0);
+        //                        counter ++;
 
-        //	return counter;
+        //        return counter;
         //};
 };
 

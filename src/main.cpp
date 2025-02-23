@@ -13,17 +13,11 @@ Sabertooth Sabertooth2x(128, Serial1);
 Sabertooth Syren10(128, Serial2);
 
 //initialize XBox controller
-AnalogHatEnum throttleAxis;
-AnalogHatEnum turnAxis;
-AnalogHatEnum domeAxis;
-ButtonEnum speedSelectButton;
-ButtonEnum hpLightToggleButton;
 USB Usb;
 XBOXRECV Xbox(&Usb);
 
-
 // Set some defaults for start up
-// false = drive motors off ( right stick disabled ) at start
+// false = drive motors off ( left stick disabled ) at start
 boolean isDriveEnabled = false;
 
 // Automated functionality
@@ -38,14 +32,18 @@ byte automateDelay = random(5, 20);
 int turnDirection = 20;
 
 int driveThrottle = 0;
-int throttleStickValue = 0;
 int domeThrottle = 0;
 int turnThrottle = 0;
+int throttleStickValue = 0;
 int drivespeed = DRIVESPEED1;
 
 boolean firstLoadOnConnect = false;
 
 boolean isHPOn = false;
+
+// Controller LEDs will go back to random blinking after some time so we need to re-set them periodically
+unsigned long ledTimerMillis = 0;
+void setControllerLEDs();
 
 void setup() {
   Serial1.begin(SABERTOOTHBAUDRATE);
@@ -63,28 +61,10 @@ void setup() {
   Sabertooth2x.setTimeout(950);
   Syren10.setTimeout(950);
 
-  if(LEFTSTICKDRIVE) {
-    throttleAxis = LeftHatY;
-    turnAxis = LeftHatX;
-    domeAxis = RightHatX;
-    speedSelectButton = L3;
-    hpLightToggleButton = R3;
-
-  } else {
-    throttleAxis = RightHatY;
-    turnAxis = RightHatX;
-    domeAxis = LeftHatX;
-    speedSelectButton = R3;
-    hpLightToggleButton = L3;
-  }
-
   // Start I2C Bus.
   Wire.begin();
 
-  // Wait for serial port to connect - used on Leonardo, Teensy and other boards with built-in USB CDC serial connection
-  while (!Serial);
   if (Usb.Init() == -1) {
-    //Serial.print(F("\r\nOSC did not start"));
     while (1); //halt
   }
 }
@@ -108,34 +88,44 @@ void loop() {
     firstLoadOnConnect = true;
     Player::play(1,10);
     //player.playSpecified(21);
-    Xbox.setLedMode(ROTATING, 0);
+    Xbox.setLedMode(SLOWBLINK, 0);
   }
 
   if (Xbox.getButtonClick(XBOX, 0)) {
-    if(Xbox.getButtonPress(L1, 0) && Xbox.getButtonPress(R1, 0)){
+    if(Xbox.getButtonPress(LB, 0) && Xbox.getButtonPress(LT, 0)){
       Xbox.disconnect(0);
     }
+  }
+
+  // The controller will start randomly blinking the LEDs after some time
+  // To avoid this, we need to set the LEDs to the required state every second
+  unsigned long now = millis();
+  if(now - ledTimerMillis > 1000) {
+    ledTimerMillis = now;
+    setControllerLEDs();
   }
 
   // enable / disable right stick (droid movement) & play a sound to signal motor state
   if (Xbox.getButtonClick(START, 0)) {
     if (isDriveEnabled) {
       isDriveEnabled = false;
-      Xbox.setLedMode(ROTATING, 0);
+      setControllerLEDs();
+//      Xbox.setLedMode(SLOWBLINK, 0);
       Player::play(1,21);
       //player.playSpecified(53);
     } else {
       isDriveEnabled = true;
+      setControllerLEDs();
       Player::play(1,20);
       //player.playSpecified(52);
       // Set LED to indicate speed
-      if (drivespeed == DRIVESPEED1) {
-        Xbox.setLedOn(LED1, 0);
-      } else if (drivespeed == DRIVESPEED2 && (DRIVESPEED3 != 0)) {
-        Xbox.setLedOn(LED2, 0);
-      } else {
-        Xbox.setLedOn(LED3, 0);
-      }
+      // if (drivespeed == DRIVESPEED1) {
+      //   Xbox.setLedOn(LED1, 0);
+      // } else if (drivespeed == DRIVESPEED2 && (DRIVESPEED3 != 0)) {
+      //   Xbox.setLedOn(LED2, 0);
+      // } else {
+      //   Xbox.setLedOn(LED3, 0);
+      // }
     }
   }
 
@@ -179,36 +169,36 @@ void loop() {
         }
       }
 
-      // sets the mix, max seconds between automation actions - sounds and dome movement
+      // sets the min, max seconds between automation actions - sounds and dome movement
       automateDelay = random(3,10);
     }
   }
 
   // Volume Control of MP3 Trigger
-  // Hold R1 and Press Up/down on D-pad to increase/decrease volume
+  // Hold LT and Press Up/down on D-pad to increase/decrease volume
   if (Xbox.getButtonClick(UP, 0)) {
     // volume up
-    if (Xbox.getButtonPress(R1, 0)) {
+    if (Xbox.getButtonPress(LT, 0)) {
       Player::volumeUp();
     }
   }
   if (Xbox.getButtonClick(DOWN, 0)) {
     //volume down
-    if (Xbox.getButtonPress(R1, 0)) {
+    if (Xbox.getButtonPress(LT, 0)) {
       Player::volumeDown();
     }
   }
 
 
   // Logic display brightness.
-  // Hold L1 and press up/down on dpad to increase/decrease brightness
+  // Hold LB and press up/down on dpad to increase/decrease brightness
   if (Xbox.getButtonClick(UP, 0)) {
-    if (Xbox.getButtonPress(L1, 0)) {
+    if (Xbox.getButtonPress(LB, 0)) {
       //triggerI2C(10, "24"); //RA: Can't find any logic in Teeces code to adjust logic display brightness...
     }
   }
   if (Xbox.getButtonClick(DOWN, 0)) {
-    if (Xbox.getButtonPress(L1, 0)) {
+    if (Xbox.getButtonPress(LB, 0)) {
       //triggerI2C(10, "25"); //RA: Can't find any logic in Teeces code to adjust logic display brightness...
     }
   }
@@ -217,16 +207,16 @@ void loop() {
 
   // Y Button and Y combo buttons
   if (Xbox.getButtonClick(Y, 0)) {
-    if (Xbox.getButtonPress(L1, 0)) {
+    if (Xbox.getButtonPress(LB, 0)) {
       Player::play(2,11);
       //player.playSpecified(8);
       Teeces::random(Teeces::ALL);
 
-    } else if (Xbox.getButtonPress(L2, 0)) {
+    } else if (Xbox.getButtonPress(LT, 0)) {
       Player::play(2,6);
       //player.playSpecified(2);
       Teeces::random(Teeces::ALL);
-    } else if (Xbox.getButtonPress(R1, 0)) {
+    } else if (Xbox.getButtonPress(LT, 0)) {
       Player::play(8,2);
       //player.playSpecified(9);
       Teeces::random(Teeces::ALL);
@@ -239,62 +229,55 @@ void loop() {
 
   // A Button and A combo Buttons
   if (Xbox.getButtonClick(A, 0)) {
-    if (Xbox.getButtonPress(L1, 0)) {
-      Player::play(6,2);
-      //player.playSpecified(6);
+    if (Xbox.getButtonPress(LB, 0)) {
+      Player::playShortCircuit();
       Teeces::shortCircuit();
       Holos::flicker(Holos::ALL, ShortCircuitDuration);
-    } else if (Xbox.getButtonPress(L2, 0)) {
-      Player::play(6,1);
-      //player.playSpecified(1);
+    } else if (Xbox.getButtonPress(LT, 0)) {
+      Player::playScream();
       Teeces::alarm();
       Holos::flicker(Holos::ALL, AlarmDuration);
-    } else if (Xbox.getButtonPress(R1, 0)) {
-      Player::play(8,2);
-      //player.playSpecified(11);
+    } else if (Xbox.getButtonPress(LT, 0)) {
+      Player::playMarch();
       Teeces::march();
     } else {
-      Player::playRandom(2,1,19);
-      //player.playSpecified(random(17, 25));
+      Player::playRandom();
       Teeces::random(Teeces::ALL);
     }
   }
 
   // B Button and B combo Buttons
   if (Xbox.getButtonClick(B, 0)) {
-    if (Xbox.getButtonPress(L1, 0)) {
+    if (Xbox.getButtonPress(LB, 0)) {
       Player::play(1,12);
       //player.playSpecified(7);
       Teeces::random(Teeces::ALL);
-    } else if (Xbox.getButtonPress(L2, 0)) {
+    } else if (Xbox.getButtonPress(LT, 0)) {
       Player::play(3,1);
       //player.playSpecified(3);
       Teeces::random(Teeces::ALL);
-    } else if (Xbox.getButtonPress(R1, 0)) {
-      Player::play(8,5);
-      //player.playSpecified(10);
+    } else if (Xbox.getButtonPress(LT, 0)) {
+      Player::playDisco();
       Teeces::bargraph(Teeces::ALL);
       Holos::flicker(Holos::ALL, CantinaDuration);
     } else {
-      Player::playRandom(2,1,18);
-      //player.playSpecified(random(32, 52));
+      Player::playRandom();
       Teeces::random(Teeces::ALL);
     }
   }
 
   // X Button and X combo Buttons
   if (Xbox.getButtonClick(X, 0)) {
-    // leia message L1+X
-    if (Xbox.getButtonPress(L1, 0)) {
-      Player::play(7,1);
-      //player.playSpecified(5);
+    // leia message LB+X
+    if (Xbox.getButtonPress(LB, 0)) {
+      Player::playLeia();
       Teeces::leia();
       Holos::flicker(Holos::FRONT, LeiaDuration);
-    } else if (Xbox.getButtonPress(L2, 0)) {
+    } else if (Xbox.getButtonPress(LT, 0)) {
       Player::play(6,2);
       //player.playSpecified(4);
       Teeces::shortCircuit();
-    } else if (Xbox.getButtonPress(R1, 0)) {
+    } else if (Xbox.getButtonPress(LT, 0)) {
       Player::play(8,1);
       //player.playSpecified(12);
       Teeces::random(Teeces::ALL);
@@ -307,7 +290,7 @@ void loop() {
 
   // turn hp light on & off with Right Analog Stick Press (R3) for left stick drive mode
   // turn hp light on & off with Left Analog Stick Press (L3) for right stick drive mode
-  if (Xbox.getButtonClick(hpLightToggleButton, 0))  {
+  if (Xbox.getButtonClick(R3, 0))  {
     // if hp light is on, turn it off
     if (isHPOn) {
       isHPOn = false;
@@ -322,7 +305,7 @@ void loop() {
   // Press Left Analog Stick (L3) for left stick drive mode
   // Press Right Analog Stick (R3) for right stick drive mode
   // Set LEDs for speed - 1 LED, Low. 2 LED - Med. 3 LED High
-  if (Xbox.getButtonClick(speedSelectButton, 0) && isDriveEnabled) {
+  if (Xbox.getButtonClick(L3, 0) && isDriveEnabled) {
     //if in lowest speed
     if (drivespeed == DRIVESPEED1) {
       //change to medium speed and play sound 3-tone
@@ -353,7 +336,7 @@ void loop() {
   // Xbox 360 analog stick values are signed 16 bit integer value
   // Sabertooth runs at 8 bit signed. -127 to 127 for speed (full speed reverse and  full speed forward)
   // Map the 360 stick values to our min/max current drive speed
-  throttleStickValue = (map(Xbox.getAnalogHat(throttleAxis, 0), -32768, 32767, -drivespeed, drivespeed));
+  throttleStickValue = (map(Xbox.getAnalogHat(LeftHatY, 0), -32768, 32767, -drivespeed, drivespeed));
   if (throttleStickValue > -DRIVEDEADZONERANGE && throttleStickValue < DRIVEDEADZONERANGE) {
     // stick is in dead zone - don't drive
     driveThrottle = 0;
@@ -373,7 +356,7 @@ void loop() {
     }
   }
 
-  turnThrottle = map(Xbox.getAnalogHat(turnAxis, 0), -32768, 32767, -TURNSPEED, TURNSPEED);
+  turnThrottle = map(Xbox.getAnalogHat(LeftHatX, 0), -32768, 32767, -TURNSPEED, TURNSPEED);
 
   // DRIVE!
   // right stick (drive)
@@ -389,12 +372,24 @@ void loop() {
   }
 
   // DOME DRIVE!
-  domeThrottle = (map(Xbox.getAnalogHat(domeAxis, 0), -32768, 32767, DOMESPEED, -DOMESPEED));
+  domeThrottle = (map(Xbox.getAnalogHat(RightHatX, 0), -32768, 32767, DOMESPEED, -DOMESPEED));
   if (domeThrottle > -DOMEDEADZONERANGE && domeThrottle < DOMEDEADZONERANGE) {
     //stick in dead zone - don't spin dome
     domeThrottle = 0;
   }
-
   Syren10.motor(1, domeThrottle);
 }
 
+void setControllerLEDs() {
+  if(isDriveEnabled) {
+    if (drivespeed == DRIVESPEED1) {
+      Xbox.setLedOn(LED1, 0);
+    } else if (drivespeed == DRIVESPEED2 && (DRIVESPEED3 != 0)) {
+      Xbox.setLedOn(LED2, 0);
+    } else {
+      Xbox.setLedOn(LED3, 0);
+    }
+  } else {
+    Xbox.setLedMode(SLOWBLINK, 0);
+  }
+}
